@@ -131,7 +131,7 @@ plt2 <- test_dat %>%
                         alpha = .6) +
     theme(legend.position = "none") + 
     scale_x_continuous(trans = "date") 
-ggsave(file.path(this_dir, "plots", "all_15_day_avg.png"), plt2, width = 14, height = 10)
+ggsave(file.path(this_dir, "plots", "allstates_15_day_avg.png"), plt2, width = 14, height = 10)
 ```
 
 
