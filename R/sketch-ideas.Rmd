@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 ##Define package list
-Packages<-c("tidyverse", "skimr", "lubridate", "zoo")
+Packages<-c("tidyverse", "skimr", "lubridate", "zoo", "plotly")
 .packages = Packages
 ##Install CRAN packages (if not already installed)
 .inst <- .packages %in% installed.packages()
@@ -44,11 +44,11 @@ new_scrape_df <- read_scrape_data(TRUE) %>%
 comb_df <- old_scrape_df %>%
     bind_rows(new_scrape_df) %>%
     group_by(State, Name, Facility.ID, Jurisdiction) %>%
-    # pass constant values to older dates where it didnt exit before
+    # # pass constant values to older dates where it didnt exit before
     mutate(Population.Feb20 = get_first_not_na(Population.Feb20)) %>%
     mutate(Capacity = get_first_not_na(Capacity)) %>%
-    ungroup() %>%
-    # only look at state and federal facilities
+    # ungroup() %>%
+    ## only look at state and federal facilities
     filter(Jurisdiction %in% c("state", "federal")) %>%
     # ignore statewide non facility data
     filter(!str_detect(Name, "(?i)statewide"),
@@ -71,7 +71,7 @@ comb_df %>%
 ```{r}
 test_dat <- comb_df %>%
   arrange(Date) %>% 
-  filter(!is.na(Residents.Confirmed)) %>% # only keep when we have Res.Conf
+  # filter(!is.na(Residents.Confirmed)) %>% # only keep when we have Res.Conf
   mutate(Facility.ID = as.character(Facility.ID)) %>%
   filter(!is.na(Facility.ID)) %>% # only keep when we have a clean name 
   group_by(Facility.ID) %>%
@@ -91,8 +91,8 @@ test_dat <- comb_df %>%
                 res.confirmed_21day = zoo::rollmean(Residents.Confirmed, k = 21, fill = "extend")) %>% 
   dplyr::ungroup() %>%
   select(Facility.ID, State, Name, Date, Residents.Confirmed, 
-         conf_day_change, previous_day_conf, starts_with("res.confirmed"))
-
+         conf_day_change, previous_day_conf, starts_with("res.confirmed"),
+         Residents.Deaths)
 
 plt1 <- test_dat %>% 
   filter(State == "California") %>%
@@ -105,14 +105,12 @@ plt1 <- test_dat %>%
               alpha=0.3) + 
     ggplot2::geom_line(aes(
       x = Date, 
-       y = res.confirmed_15day, # change 7-day average, 15-day average, etc here
-       group = Facility.ID,
-       color = State),
-                        alpha = .6) +
+      y = res.confirmed_15day, # change 7-day average, 15-day average, etc here
+      group = Facility.ID),
+            alpha = .6) +
     theme(legend.position = "none") + 
     scale_x_continuous(trans = "date") 
 ggsave(file.path(this_dir, "plots", "ca_15_day_avg.png"), plt1, width = 14, height = 10)
-
 
 plt2 <- test_dat %>% 
   # filter(State == "California") %>%
@@ -128,15 +126,90 @@ plt2 <- test_dat %>%
        y = res.confirmed_15day, # change 7-day average, 15-day average, etc here
        group = Facility.ID,
        color = State),
-                        alpha = .6) +
+          alpha = .6) +
     theme(legend.position = "none") + 
     scale_x_continuous(trans = "date") 
 ggsave(file.path(this_dir, "plots", "allstates_15_day_avg.png"), plt2, width = 14, height = 10)
+
+plt3 <- test_dat %>% 
+  filter(State == "California") %>%
+  ggplot(data = ., 
+         aes(x = Date, 
+             y = Residents.Confirmed, # change 7-day average, 15-day average, etc here
+             fill  = Facility.ID)) +
+  geom_area(alpha=0.6 , size=.5, colour="white") +
+  scale_fill_viridis(discrete = T) +
+  theme(legend.position = "none") +
+  scale_x_date(date_breaks = "2 months", date_labels = "%m/%y")
+ggsave(file.path(this_dir, "plots", "ca_stacked_area.png"), plt3, width = 14, height = 10)
+
+base_4 <- test_dat %>% 
+  arrange(State) %>%
+  ggplot(data = ., 
+         aes(x = Date, 
+             y = Residents.Confirmed, 
+             group = Facility.ID)) +
+  geom_line(aes(colour = State), position = "stack", alpha = 0.4, size = 0.5) + 
+  scale_x_date(date_breaks = "2 months", date_labels = "%m/%y") 
+
+plt4 <- base_4 + 
+  ## event 1
+  geom_vline(xintercept = as.Date("2021-02-08"), linetype = 4) + 
+  annotate("text", 
+             x = as.Date("2021-01-05"), 
+             y = 140000, 
+             label = "First case of the B.1.1.7 \nvariant confirmed on Feb 8", 
+             size = 4) + 
+  ## event 2
+  geom_vline(xintercept = as.Date("2020-03-31"), linetype = 4) + 
+  annotate("text", 
+           x = as.Date("2020-05-10"), 
+           y = 8000, 
+           label = "First COVID prison dashboard (CA)", 
+           size = 4)
+ggsave(file.path(this_dir, "plots", "allstates_stacked_lines.png"), plt4, width = 14, height = 10)
+
+plt5 <- test_dat %>% 
+  filter(State == "California") %>%
+  # filter(State != "California") %>%
+  ggplot(., 
+         aes(x=Date, 
+             y=Residents.Deaths, 
+             group=Facility.ID)) + 
+  geom_line(aes(colour = Facility.ID), position = "stack", alpha = 0.6, size = 0.5) + 
+  theme(legend.position = "none") + 
+  scale_x_date(date_breaks = "2 months", date_labels = "%m/%y") + 
+  labs(title = "California COVID deaths in prison over time")
+ggsave(file.path(this_dir, "plots", "ca_deaths.png"), plt5, width = 14, height = 10)
+
+## seems like 10/23, 10/24 could be double-counting
+plt6 <- test_dat %>% 
+  filter(Date != as.Date("2020-10-23")) %>%
+  filter(Date != as.Date("2020-10-24")) %>%
+  filter(Date != as.Date("2020-10-20")) %>%
+  arrange(State) %>%
+  ggplot(data = ., 
+         aes(x = Date, 
+             y = Residents.Deaths, 
+             group = Facility.ID)) +
+  geom_line(aes(colour = State), position = "stack", alpha = 0.4, size = 0.5) + 
+  scale_x_date(date_breaks = "2 months", date_labels = "%m/%y") + 
+  theme(legend.position = "none")
+# ggplotly(plt6)
+ggsave(file.path(this_dir, "plots", "allstates_stacked_deaths.png"), plt6, width = 14, height = 10)
+
+plt7 <- test_dat %>%
+  # filter(Date < as.Date("2020-04-30")) %>%
+  count(Date, State) %>%
+  ggplot(data = ., 
+         aes(x = Date, 
+             y = n, 
+             fill = State)) +
+  geom_bar(position="stack", stat="identity") + 
+  scale_x_date(date_breaks = "1 week", date_labels = "%b %d") + 
+  theme(legend.position = "none") + 
+  labs(title = "COVID-19 data reporting for carceral facilities",
+       x = "",
+       y = "Number of facilities scraped")
+ggsave(file.path(this_dir, "plots", "facilities_scraped.png"), plt7, width = 14, height = 10)
 ```
-
-
-
-
-
-
-
