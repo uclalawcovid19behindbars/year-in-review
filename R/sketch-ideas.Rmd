@@ -44,19 +44,28 @@ new_scrape_df <- read_scrape_data(TRUE) %>%
 comb_df <- old_scrape_df %>%
     bind_rows(new_scrape_df) %>%
     group_by(State, Name, Facility.ID, Jurisdiction) %>%
-    # # pass constant values to older dates where it didnt exit before
+    # pass constant values to older dates where it didnt exit before
     mutate(Population.Feb20 = get_first_not_na(Population.Feb20)) %>%
     mutate(Capacity = get_first_not_na(Capacity)) %>%
-    # ungroup() %>%
-    ## only look at state and federal facilities
-    filter(Jurisdiction %in% c("state", "federal")) %>%
+    ungroup() %>%
+    # only look at state and federal facilities
+    filter(Jurisdiction %in% c("state", "federal", "immigration")) %>%
     # ignore statewide non facility data
     filter(!str_detect(Name, "(?i)statewide"),
-           !str_detect(Name, "(?i)state-wide"),
-    # ignore obs where we don't have a clean name
-           !is.na(Facility.ID)) 
+           !str_detect(Name, "(?i)state-wide"))
 
-# write_csv(comb_df, file.path(data_path, "all-dat-processed.csv"))
+dates <- comb_df %>%
+  arrange(Date) %>%
+  count(Date)
+dates
+
+ggplot(data = dates, 
+       aes(x = Date, y = n)) +
+  geom_bar(stat="identity") +
+  labs(x = "Date",
+    y = "n instances")
+
+write_csv(comb_df, file.path(data_path, "all-dat-processed.csv"))
 ```
 
 ```{r}
@@ -66,14 +75,11 @@ comb_df %>%
   count(Facility.ID)
 ```
 
-
-
 ```{r}
 test_dat <- comb_df %>%
   arrange(Date) %>% 
-  # filter(!is.na(Residents.Confirmed)) %>% # only keep when we have Res.Conf
   mutate(Facility.ID = as.character(Facility.ID)) %>%
-  filter(!is.na(Facility.ID)) %>% # only keep when we have a clean name 
+  filter(!is.na(Facility.ID)) %>% # only keep when we have a clean name
   group_by(Facility.ID) %>%
   mutate(previous_day_conf = lag(Residents.Confirmed, order_by = Date)) %>%
   mutate(conf_day_change = Residents.Confirmed - previous_day_conf) %>%
@@ -90,7 +96,7 @@ test_dat <- comb_df %>%
                 res.confirmed_15day = zoo::rollmean(Residents.Confirmed, k = 15, fill = "extend"),
                 res.confirmed_21day = zoo::rollmean(Residents.Confirmed, k = 21, fill = "extend")) %>% 
   dplyr::ungroup() %>%
-  select(Facility.ID, State, Name, Date, Residents.Confirmed, 
+  select(Facility.ID, State, Name, Jurisdiction, Date, Residents.Confirmed, 
          conf_day_change, previous_day_conf, starts_with("res.confirmed"),
          Residents.Deaths)
 
