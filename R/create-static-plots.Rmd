@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 ##Define package list
-Packages<-c("tidyverse", "skimr", "lubridate", "zoo", "plotly")
+Packages<-c("tidyverse", "skimr", "lubridate", "zoo", "plotly", "glue")
 .packages = Packages
 ##Install CRAN packages (if not already installed)
 .inst <- .packages %in% installed.packages()
@@ -39,7 +39,7 @@ old_scrape_df <- read_csv(file.path(input_path, "hist_df.csv")) %>%
     filter(Date <= ymd("2020-11-04"))
 
 new_scrape_df <- read_scrape_data(TRUE) %>%
-    filter(Date > ymd("2020-11-04"))
+    filter((Jurisdiction == "immigration") | (Date > ymd("2020-11-04")))
 
 comb_df <- old_scrape_df %>%
     bind_rows(new_scrape_df) %>%
@@ -72,6 +72,7 @@ comb_df %>%
 Create week and 2-week averages for Residents.Confirmed. 
 
 ```{r}
+## NB: only use "test_dat" for historical, facility-level vizzes when we want through-lines of data
 test_dat <- comb_df %>%
   arrange(Date) %>% 
   mutate(Facility.ID = as.character(Facility.ID)) %>%
@@ -83,7 +84,7 @@ test_dat <- comb_df %>%
   ungroup() %>%
   arrange(Facility.ID, Date) %>%
   group_by(Facility.ID) %>%
-  filter(n() > 230) %>% # only keep obs when we have a through-line of historical data
+  filter(n() > 100) %>% # only keep obs when we have a through-line of historical data
   dplyr::arrange(desc(Facility.ID)) %>% 
   dplyr::group_by(Facility.ID) %>% 
   dplyr::mutate(res.confirmed_03day = zoo::rollmean(Residents.Confirmed, k = 3, fill = "extend"),
@@ -94,50 +95,191 @@ test_dat <- comb_df %>%
   dplyr::ungroup() %>%
   select(Facility.ID, State, Name, Jurisdiction, Date, Residents.Confirmed, 
          conf_day_change, previous_day_conf, starts_with("res.confirmed"),
-         Residents.Deaths)
+         Residents.Deaths) %>%
+  mutate(highlight_fac = case_when(
+                Facility.ID == 100 ~ TRUE,
+                Facility.ID == 652 ~ TRUE,
+                Facility.ID == 83 ~ TRUE,
+                Facility.ID == 112 ~ TRUE,
+                TRUE ~ FALSE
+          )) 
 ```
 
 # Jurisidiction aggregates over time
 
-Need to do this a different way.... use behindbarstools functions when it's integrated ! 
+Combine our historical data and the Marshall Project's to generate aggregate counts!
 
 ```{r}
-count_by_jur <- comb_df %>% 
-  group_by(Jurisdiction, Date) %>%
-  summarise(ResConfByJur = sum(Residents.Confirmed),
-            ResDeathsByJur = sum(Residents.Deaths)) 
+window <- 30
+collapse_vaccine <- TRUE
+to_report <- c(datasets::state.name, "Federal", "ICE")
+mp_data <- read_mpap_data(window = window, all_dates = TRUE) %>%
+    # select(-Date) %>%
+    tidyr::pivot_longer(-c(Date, State), 
+                        names_to = "Measure", 
+                        values_to = "MP") %>%
+  filter(!is.na(Date))
 
-count_by_jur %>%
+state_df <- comb_df %>%
+        mutate(State = ifelse(Jurisdiction == "federal", "Federal", State)) %>%
+        mutate(State = ifelse(Jurisdiction == "immigration", "ICE", State)) %>%
+        select(Name, State, Date, starts_with("Residents"), starts_with("Staff")) %>%
+        select(-Residents.Population) %>%
+        `if`(
+            collapse_vaccine,
+            mutate(., Staff.Vadmin = ifelse(
+                is.na(.$Staff.Vadmin), .$Staff.Initiated, .$Staff.Vadmin)),
+            .) %>%
+        `if`(
+            collapse_vaccine,
+            mutate(., Residents.Vadmin = ifelse(
+                is.na(.$Residents.Vadmin), .$Residents.Initiated, .$Residents.Vadmin)),
+            .) %>%
+        `if`(
+            collapse_vaccine,
+            mutate(., Staff.Vadmin = ifelse(
+                is.na(.$Staff.Vadmin), .$Staff.Completed, .$Staff.Vadmin)),
+            .) %>%
+        `if`(
+            collapse_vaccine,
+            mutate(., Residents.Vadmin = ifelse(
+                is.na(.$Residents.Vadmin), .$Residents.Completed, .$Residents.Vadmin)),
+            .) %>%
+        tidyr::pivot_longer(
+            -c(Name, State, Date), names_to = "Measure", values_to = "UCLA") %>%
+        filter(!is.na(UCLA)) %>%
+        group_by(State, Date, Measure) %>%
+        # mutate(has_statewide = c("STATEWIDE", "STATE-WIDE") %in% Name) %>%
+        # # if state wide and other counts exist for a measure only use statewide
+        # filter(!(has_statewide & Name != "STATEWIDE")) %>%
+        summarise(UCLA = sum_na_rm(UCLA), .groups = "drop") %>%
+        full_join(mp_data, by = c("State", "Date", "Measure")) %>%
+        mutate(Val = case_when(
+            is.na(UCLA) & is.na(MP) ~ NA_real_,
+            is.na(UCLA) ~ MP,
+            is.na(MP) ~ UCLA,
+            UCLA >= MP ~ UCLA,
+            TRUE ~ MP
+        ),
+        Jurisdiction = case_when(
+                State == "Federal" ~ "Federal",
+                State == "ICE" ~ "ICE",
+                TRUE ~ "State"
+              )) 
+
+agg_df <- state_df %>%
+    filter(!is.na(Val)) %>%
+    group_by(Date, Measure, Jurisdiction) %>%
+    summarize(
+        Count = sum_na_rm(Val), 
+        Reporting = sum(!is.na(Val)),
+        Missing = paste0(
+            to_report[!(to_report %in% State)], collapse = ", "),
+        .groups = "drop") %>%
+  ungroup() %>%
+  mutate(week = lubridate::week(Date),
+         year = lubridate::year(Date),
+         week_year = glue('{week}/{year}')) 
+  
+rolling_max_res_confirmed <- agg_df %>%
+  filter(Measure == "Residents.Confirmed") %>%
+  arrange(Date) %>%
+  dplyr::group_by(Jurisdiction) %>% 
+  dplyr::mutate(resconfMax_07day = zoo::rollmax(Count, k = 7, fill = "extend"),
+                resconfMax_10day = zoo::rollmax(Count, k = 10, fill = "extend"),
+                resconfMax_14day = zoo::rollmax(Count, k = 14, fill = "extend")) %>% 
+  dplyr::ungroup()
+```
+
+Create area plot showing counts aggregated by jurisdiction. 
+
+```{r}
+## RESIDENTS.CONFIRMED
+#area plot
+aggregate_area <- rolling_max_res_confirmed %>%
+  # filter(Measure == "Residents.Confirmed") %>%
   ggplot(data = ., 
          aes(x = Date, 
-             y = ResConfByJur, # change 7-day average, 15-day average, etc here
+             y = resconfMax_10day, 
              fill  = Jurisdiction)) +
-  geom_area(alpha=0.6 , size=.5, colour="white") +
-  scale_fill_viridis(discrete = T) +
-  # theme(legend.position = "none") +
+  geom_area(alpha=1, size=.05, colour="black") +
+  scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") + 
+  scale_y_continuous(labels = scales::comma) + 
+  labs(x = "", 
+       y = "Cumulative COVID-19 Cases Among Incarcerated People", 
+       title = "Aggregating COVID-19 Case Counts in Prison") + 
+  theme_behindbars(base_size = 18) + 
+  scale_fill_bbdiscrete()
+ggsave(file.path(this_dir, "plots", "aggregate_area.png"), aggregate_area, width = 14, height = 10)
+  
+# line plot
+line <- rolling_max_res_confirmed %>%
+  ggplot(data = ., 
+         aes(x = Date, 
+             y = resconfMax_10day, 
+             group  = Jurisdiction)) +
+  geom_line(aes(colour = Jurisdiction), position = "stack", alpha = 0.7, size = 0.5) + 
   scale_x_date(date_breaks = "2 months", date_labels = "%m/%y")
+ggplotly(line)
 
+## RESIDENTS.DEATHS
+rolling_max_res_deaths <- agg_df %>%
+  filter(Measure == "Residents.Deaths") %>%
+  arrange(Date) %>%
+  dplyr::group_by(Jurisdiction) %>% 
+  dplyr::mutate(resdeathsMax_07day = zoo::rollmax(Count, k = 7, fill = "extend"),
+                resdeathsMax_10day = zoo::rollmax(Count, k = 10, fill = "extend"),
+                resdeathsMax_14day = zoo::rollmax(Count, k = 14, fill = "extend")) %>% 
+  dplyr::ungroup() 
+
+aggregate_deaths <- rolling_max_res_deaths%>%
+  ggplot(data = ., 
+         aes(x = Date, 
+             y = resdeathsMax_10day, 
+             fill  = Jurisdiction)) +
+  geom_area(alpha=1, size=.2, colour="black") +
+  scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") + 
+  scale_y_continuous(labels = scales::comma) + 
+  labs(x = "", 
+       y = "Cumulative COVID-19 Deaths Among Incarcerated People", 
+       main = "Aggregating COVID-19 Case Counts in Prison") + 
+  theme_behindbars(base_size = 18) + 
+  scale_fill_bbdiscrete()
 ```
 
 # All facilities with select highlights
 
 ```{r}
-test_dat %>% 
-  # filter(State == "California") %>%
-  # filter(State != "California") %>%
-  ggplot(., 
-         aes(x=Date, 
-             y=Residents.Confirmed, 
-             group=Facility.ID)) + 
-    geom_line(aes(color=State), 
-              alpha=0.3) + 
-    ggplot2::geom_line(aes(
-      x = Date, 
-       y = res.confirmed_15day, # change 7-day average, 15-day average, etc here
-       group = Facility.ID,
-       color = State),
-          alpha = .6) +
-    theme(legend.position = "none") + 
-    scale_x_continuous(trans = "date") 
-```
+line_plot <- test_dat %>% 
+  ggplot(.) + 
+  ggplot2::geom_line(aes(
+    x = Date, 
+    y = res.confirmed_15day, # change 7-day average, 15-day average, etc here
+    group = Facility.ID,
+    color = highlight_fac,
+    alpha = highlight_fac)) +
+  # geom_line(aes(group = highlight_fac, color = "red")) +
+  scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") + 
+  scale_y_continuous(labels = scales::comma) + 
+  scale_color_manual(values=c("grey50", "red")) + 
+  scale_alpha_manual(values = c(.3, 1)) + 
+  labs(x = "", 
+       y = "Cumulative COVID-19 Cases Among Incarcerated People", 
+       title = "COVID-19 Cases In Prison") + 
+  theme(legend.position = "none")
+ggsave(file.path(this_dir, "plots", "facility_lines.png"), line_plot, width = 14, height = 10)
 
+
+Facility_ID_lookup <- 100
+test_dat %>%
+  filter(Facility.ID == Facility_ID_lookup) %>%
+  select(State, Name) %>%
+  unique()
+
+
+```
+big lines:
+- SUBSTANCE ABUSE TREATMENT FACILITY, CA
+- AVENAL, CA (largest line)
+- CALIFORNIA STATE PRISON SAN QUENTIN, CA
+- Early rise: ohio, Marion 
