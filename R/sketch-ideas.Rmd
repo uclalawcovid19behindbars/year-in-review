@@ -94,11 +94,14 @@ test_dat <- comb_df %>%
                 res.confirmed_05day = zoo::rollmean(Residents.Confirmed, k = 5, fill = "extend"),
                 res.confirmed_07day = zoo::rollmean(Residents.Confirmed, k = 7, fill = "extend"),
                 res.confirmed_15day = zoo::rollmean(Residents.Confirmed, k = 15, fill = "extend"),
-                res.confirmed_21day = zoo::rollmean(Residents.Confirmed, k = 21, fill = "extend")) %>% 
+                res.confirmed_21day = zoo::rollmean(Residents.Confirmed, k = 21, fill = "extend"),
+                resTwoWeekAvg = res.confirmed_15day) %>% 
   dplyr::ungroup() %>%
   select(Facility.ID, State, Name, Jurisdiction, Date, Residents.Confirmed, 
-         conf_day_change, previous_day_conf, starts_with("res.confirmed"),
+         conf_day_change, previous_day_conf, starts_with("res"),
          Residents.Deaths)
+
+# test_dat %>% write_csv(., "./data/processed/mar9.csv")
 
 plt1 <- test_dat %>% 
   filter(State == "California") %>%
