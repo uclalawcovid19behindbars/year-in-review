@@ -65,7 +65,7 @@ tr:hover {
   font-size: 25px;
 }
 
-path { 
+path.trend { 
   stroke: #383c49;
   stroke-width: 2;
   fill: none;
