@@ -66,13 +66,7 @@ tr:hover {
 }
 
 path { 
-  stroke: steelblue;
+  stroke: #383c49;
   stroke-width: 2;
   fill: none;
-}
-
-.trend {
-  fill: none;
-  stroke: #DC143C;
-  stroke-width: 3;
 }
