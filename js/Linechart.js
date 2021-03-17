@@ -14,8 +14,28 @@ class Linechart {
         .attr("width", this.width)
         .attr("height", this.height);
 
-     this.sumstat = d3.group(state.lineData, d => d["Facility.ID"]);
-     console.log("sumstat", this.sumstat);
+    this.sumstat = d3.group(state.lineData, d => d["Facility.ID"]);
+    // filter out facilities to highlight 
+    this.sumstat.delete(100)
+    // this.sumstat.delete(652)
+    this.sumstat.delete(83)
+    this.sumstat.delete(115)
+    this.sumstat.delete(113)
+    console.log("sumstat post-delete", this.sumstat);
+
+    // create new group with facilities to highlight 
+    const highlightFac1 = state.lineData.filter(d => d["Facility.ID"] == 100);  // san quentin
+    // const highlightFac2 = state.lineData.filter(d => d["Facility.ID"] == 652); // bellamy creek
+    const highlightFac3 = state.lineData.filter(d => d["Facility.ID"] == 83);   // avenal state prison
+    const highlightFac4 = state.lineData.filter(d => d["Facility.ID"] == 115); // ca correctional training facility 
+    const highlightFac5 = state.lineData.filter(d => d["Facility.ID"] == 113); // chuckawalla valley training 
+    // const highlightFacs = highlightFac1.concat(highlightFac2, highlightFac3, highlightFac4, highlightFac5)
+    const highlightFacs = highlightFac1.concat(highlightFac3, highlightFac4, highlightFac5)
+
+
+    this.highlightGrp = d3.group(highlightFacs, d => d["Facility.ID"])
+    console.log("highlight", this.highlightGrp)
+
     }
   
     draw(state, setGlobalState) {
@@ -84,35 +104,42 @@ class Linechart {
           }
 
         // simplest way to put all the lines on the page 
-        // const path = this.svg
-        //     .selectAll(".path")
-        //     .data(this.sumstat)
-        //     .join("path")
-        //     .style("mix-blend-mode", "multiply")
-        //     .attr("fill", "none")
-        //     .attr("stroke", "gray")
-        //     .attr("stroke-width", 1.5)
-        //     .attr("d", d => lineFunc(d[1]));
-
-        // draw lines in an animated but kinda clunky way 
-          const path = this.svg
-            .selectAll("path")
+        const path = this.svg
+            .append("g")
+            .attr("class", "allLines")
+            .selectAll(".path")
             .data(this.sumstat)
             .join("path")
+            .style("mix-blend-mode", "multiply")
             .attr("fill", "none")
             .attr("stroke", "gray")
             .attr("stroke-width", 1.5)
             .attr("opacity", .3)
+            .attr("d", d => lineFunc(d[1]));
+
+        // draw lines in an animated but kinda clunky way 
+          const attentionFacs = this.svg
+            .append("g")
+            .attr("class", "highlightLines")
+            .selectAll("path")
+            .data(this.highlightGrp)
+            .join("path")
+            .attr("fill", "none")
+            .attr("stroke", "red")
+            .attr("stroke-width", 3)
+            .attr("opacity", 1)
             .style("mix-blend-mode", "multiply")
             .attr("d", d => lineFunc(d[1]))
             .call(myTransition)
 
-        // this.svg.call(hover, path, myDates, mySumstat);
+        // needs work 
+        // attentionFacs
+        //     .select("text")
+        //     .attr("dy", "-.5em")
+        //     .text(d => `${d.Name}: ${d.State}`);
+
         return(this.svg.node());
     
-
-
-  
     }
   }
   
