@@ -189,6 +189,7 @@ rolling_max_res_confirmed <- agg_df %>%
                 resconfMax_10day = zoo::rollmax(Count, k = 10, fill = "extend"),
                 resconfMax_14day = zoo::rollmax(Count, k = 14, fill = "extend")) %>% 
   dplyr::ungroup()
+
 ```
 
 Create area plot showing counts aggregated by jurisdiction. 
@@ -232,7 +233,7 @@ rolling_max_res_deaths <- agg_df %>%
                 resdeathsMax_14day = zoo::rollmax(Count, k = 14, fill = "extend")) %>% 
   dplyr::ungroup() 
 
-aggregate_deaths <- rolling_max_res_deaths%>%
+aggregate_deaths <- rolling_max_res_deaths %>%
   ggplot(data = ., 
          aes(x = Date, 
              y = resdeathsMax_10day, 
@@ -246,6 +247,42 @@ aggregate_deaths <- rolling_max_res_deaths%>%
   theme_behindbars(base_size = 18) + 
   scale_fill_bbdiscrete()
 ```
+
+```{r}
+# create version NOT broken down by jurisdiction
+rolling_max_overall <- state_df %>%
+    filter(!is.na(Val)) %>%
+    group_by(Date, Measure) %>%
+    summarize(
+        Count = sum_na_rm(Val), 
+        Reporting = sum(!is.na(Val)),
+        Missing = paste0(
+            to_report[!(to_report %in% State)], collapse = ", "),
+        .groups = "drop") %>%
+  ungroup() %>%
+  mutate(week = lubridate::week(Date),
+         year = lubridate::year(Date),
+         week_year = glue('{week}/{year}')) %>%
+  filter(Measure == "Residents.Confirmed") %>%
+  arrange(Date) %>%
+  dplyr::mutate(resconfMax_07day = zoo::rollmax(Count, k = 7, fill = "extend"),
+                resconfMax_10day = zoo::rollmax(Count, k = 10, fill = "extend"),
+                resconfMax_14day = zoo::rollmax(Count, k = 14, fill = "extend")) 
+
+line <- rolling_max_overall %>%
+  ggplot(data = ., 
+         aes(x = Date, 
+             y = resconfMax_14day)) +
+  geom_line() + 
+  scale_x_date(date_breaks = "2 months", date_labels = "%m/%y")
+
+# write data for overall count (text element)
+# rolling_max_overall %>%
+#   select(Date, Reporting, starts_with("resconf")) %>% 
+#   write_csv(., file.path(data_path, "agg_counts.csv"))
+
+```
+
 
 # All facilities with select highlights
 
