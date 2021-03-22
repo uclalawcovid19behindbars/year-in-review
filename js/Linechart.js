@@ -34,7 +34,15 @@ class Linechart {
 
 
     this.highlightGrp = d3.group(highlightFacs, d => d["Facility.ID"])
-    console.log("highlight", this.highlightGrp)
+
+    this.tooltip = d3
+      .select("#linechart")
+      .style("position", "relative")
+      .append("div")
+      .attr("class", "tooltip")
+      .attr("width", 100)
+      .attr("height", 100)
+      .style("position", "absolute");
 
     }
   
@@ -84,6 +92,56 @@ class Linechart {
             .attr("writing-mode", "vertical-rl")
             .text("COVID-19 Cases Among Incarcerated Population");
 
+            function hover(svg, path) {
+  
+                if ("ontouchstart" in document) svg
+                    .style("-webkit-tap-highlight-color", "transparent")
+                    .on("touchmove", moved)
+                    .on("touchstart", entered)
+                    .on("touchend", left)
+                else svg
+                    .on("mousemove", moved)
+                    .on("mouseenter", entered)
+                    .on("mouseleave", left);
+              
+                const dot = svg.append("g")
+                    .attr("display", "none");
+              
+                dot.append("circle")
+                    .attr("r", 2.5);
+              
+                dot.append("text")
+                    .attr("font-family", "sans-serif")
+                    .attr("font-size", 10)
+                    .attr("text-anchor", "middle")
+                    .attr("y", -8);
+              
+                function moved(event) {
+                  event.preventDefault();
+                  const pointer = d3.pointer(event, this);
+                  const xm = xScale.invert(pointer[0]);
+                  const ym = yScale.invert(pointer[1]);
+                  const i = d3.bisectCenter(myDates, xm);
+                //   const s = d3.least(data.series, d => Math.abs(d.values[i] - ym));
+                  const s = d3.least(mySumstat, d => Math.abs(d));
+                  console.log("s", s)
+                  path.attr("stroke", d => d === s ? null : "#ddd").filter(d => d === s).raise();
+                //   dot.attr("transform", `translate(${xScale(myDates[i])},${yScale(s.values[i])})`);
+                  dot.attr("transform", `translate(${xScale(myDates[i])},${yScale(s[i])})`);
+                  dot.select("text").text(s);
+                }
+              
+                function entered() {
+                  path.style("mix-blend-mode", null).attr("stroke", "#ddd");
+                  dot.attr("display", null);
+                }
+              
+                function left() {
+                  path.style("mix-blend-mode", "multiply").attr("stroke", null);
+                  dot.attr("display", "none");
+                }
+              }
+
         const lineFunc = d3
             .line()
             .defined(d => !isNaN(d.resTwoWeekAvg))
@@ -98,7 +156,7 @@ class Linechart {
 
         function myTransition(path) {
             path.transition()
-                .duration(12000)
+                .duration(state.transition)
                 .attrTween("stroke-dasharray", tweenDash)
                 .on("end", () => { d3.select(this).call(myTransition); });
           }
@@ -116,6 +174,37 @@ class Linechart {
             .attr("stroke-width", 1.5)
             .attr("opacity", .3)
             .attr("d", d => lineFunc(d[1]));
+
+        
+          // add the dots with tooltips
+          const formatTime = d3.timeFormat("%B %e");
+
+          const div = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+            this.svg
+                .selectAll("dot")
+                .data(state.lineData)
+                .join("circle")
+                .attr("r", 1)
+                .attr("cx", function(d) { return xScale(d.Date); })
+                .attr("cy", function(d) { return yScale(d.resTwoWeekAvg); })
+                .on("mouseover", function(event,d) {
+                    div.transition()
+                    // .duration(200)
+                    .style("opacity", .9);
+                    div.html(formatTime(d.Date) + "<br/>" + d.Name)
+                    .style("left", (event.pageX) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+                    })
+                .on("mouseout", function(d) {
+                    div.transition()
+                    // .duration(500)
+                    .style("opacity", 0);
+                    });
+    
+        // this.svg.call(hover, path);
 
         // draw lines in an animated but kinda clunky way 
           const attentionFacs = this.svg
