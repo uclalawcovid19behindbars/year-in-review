@@ -8,6 +8,8 @@ let casecount;
 // global state
 let state = {
     lineData: [],
+    aggCounts: [],
+    transition: 8000,
     hover: null,
 };
 

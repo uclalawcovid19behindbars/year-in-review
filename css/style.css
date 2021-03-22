@@ -11,46 +11,22 @@ body {
   column-gap: 2em;
 }
 
-#table {
-  grid-row-start: 1;
-  grid-row-end: span 2;
-}
-
 #linechart, #casecount {
   padding-top: 1em;
 }
 
-/* Table styles */
-thead,
-tbody tr {
-  display: table;
-  width: 100%;
-  table-layout: fixed;
-  border-bottom: 1px solid white;
+path:hover {
+  stroke: orange;
 }
 
-tbody {
-  width: 100%;
-  display: block;
-  height: 70vh;
-  overflow: scroll;
+path.trend { 
+  stroke: #383c49;
+  stroke-width: 2;
+  fill: none;
 }
 
-th,
-td {
-  text-align: left;
-  padding: 0.5em;
-  cursor: pointer;
-  font-weight: lighter;
-  text-transform: capitalize;
-}
-
-tr:hover {
-  font-weight: 900;
-}
-
-/* casecount styles */
-#casecount {
+/* Count styles */
+#count {
   display: flex;
   flex-direction: row;
 }
@@ -63,10 +39,4 @@ tr:hover {
 .metric > .number {
   color: #ccc;
   font-size: 25px;
-}
-
-path.trend { 
-  stroke: #383c49;
-  stroke-width: 2;
-  fill: none;
 }

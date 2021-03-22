@@ -2,22 +2,40 @@ class CaseCount {
 
     constructor(state, setGlobalState) {
       this.container = d3.select("#casecount")
-      this.duration = 1000
     }
   
     draw(state, setGlobalState) {
       console.log("now I am drawing my CaseCount");
-  
-    //   const filteredData = state.data.find(d => state.selectedState === d.State);
-    //   const metrics = ["Age < 20", "Age 20-65", "Age 65+"];
-    //   const metricData = metrics.map(metric => {
-    //     return {
-    //       state: state.selectedState,
-    //       metric: metric,
-    //       value: filteredData ? filteredData[metric] : 0,
-    //     };
-    //   });
-  
+
+      this.agg = d3.group(state.aggCounts, d => d["Date"]);
+      console.log("date data", this.agg)
+
+      const myCount = this.container
+        .append("p")
+        .text("this is some text")
+        .style("font-family", "var(--sans-serif)")
+        .style("font-variant-numeric", "tabular-nums");
+
+
+      myCount
+        .select("p")
+        .transition()
+        .duration(this.duration)
+        .textTween(function(d) {
+          const i = d3.interpolate(0, 400000);
+          return function(t) { return format(i(t)); };
+        })
+        // .text(10)
+
+
+      // while (true) {
+      //   yield myCount.node();
+      //   await myCount.transition()
+      //       .duration(state.transition)
+      //       .textTween(() => t => `t = ${t.toFixed(400000)}`)
+      //     .end();
+      // }
+
     //   const metric = this.container
     //     .selectAll("div.metric")
     //     .data(metricData, d => d.State)
@@ -33,7 +51,6 @@ class CaseCount {
     //     ).on("click", d => {
     //       setGlobalState({ selectedMetric: d.metric });
     //     })
-  
   
     //   metric.select("div.title")
     //     .text(d => d.metric)
