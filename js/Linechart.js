@@ -158,13 +158,16 @@ class Linechart {
             path.transition()
                 .duration(state.transition)
                 .attrTween("stroke-dasharray", tweenDash)
-                .on("end", () => { d3.select(this).call(myTransition); });
+                .on("end", () => { d3.select(this).call(myTransition); })
+                .transition()
+                .style("stroke", "gray");
           }
 
         // simplest way to put all the lines on the page 
         const path = this.svg
+            // .append("div")
             .append("g")
-            .attr("class", "allLines")
+            .attr("id", "allLines")
             .selectAll(".path")
             .data(this.sumstat)
             .join("path")
@@ -175,51 +178,121 @@ class Linechart {
             .attr("opacity", .3)
             .attr("d", d => lineFunc(d[1]));
 
-        
           // add the dots with tooltips
           const formatTime = d3.timeFormat("%B %e");
 
-          const div = d3.select("body").append("div")
-            .attr("class", "tooltip")
-            .style("opacity", 0);
+          let testDate = new Date(2020, 5, 27); // may 27 2020
 
-            this.svg
-                .selectAll("dot")
-                .data(state.lineData)
-                .join("circle")
-                .attr("r", 1)
-                .attr("cx", function(d) { return xScale(d.Date); })
-                .attr("cy", function(d) { return yScale(d.resTwoWeekAvg); })
-                .on("mouseover", function(event,d) {
-                    div.transition()
-                    // .duration(200)
-                    .style("opacity", .9);
-                    div.html(formatTime(d.Date) + "<br/>" + d.Name)
-                    .style("left", (event.pageX) + "px")
-                    .style("top", (event.pageY - 28) + "px");
-                    })
-                .on("mouseout", function(d) {
-                    div.transition()
-                    // .duration(500)
-                    .style("opacity", 0);
-                    });
+          const circle = this.svg.append("circle")
+            .attr("r", 1)
+            .attr("cx", xScale(testDate))
+            .attr("cy", yScale(1314))
+            .attr("fill", "red");
+
+            var pathEl = path.node();
+            var pathLength = pathEl.getTotalLength();
+            var BBox = pathEl.getBBox();
+            var scale = pathLength/BBox.width;
+            var offsetLeft = document.getElementById("linechart").offsetLeft;
+            console.log("offsetLeft", offsetLeft)
+            var replayButton = d3.select("button");
+
+            // d3
+            //   .select("#linechart")
+            //   .on("mousemove", function() {
+            //     var mouse = d3.mouse(this);
+            //     console.log("mouse", mouse)
+            //     // var x = d3.event.pageX - offsetLeft; 
+            //     // var beginning = x, end = pathLength, target;
+            //     // while (true) {
+            //     //   target = Math.floor((beginning + end) / 2);
+            //     //   pos = pathEl.getPointAtLength(target);
+            //     //   if ((target === end || target === beginning) && pos.x !== x) {
+            //     //       break;
+            //     //   }
+            //     //   if (pos.x > x)      end = target;
+            //     //   else if (pos.x < x) beginning = target;
+            //     //   else                break; //position found
+            //     // }
+            //     // circle
+            //     //   .attr("opacity", 1)
+            //     //   .attr("cx", x)
+            //     //   .attr("cy", pos.y);
+            // });
+
+          function replay(svg, highlightData) { 
+            replayButton.on("click", function() {
+
+            d3.selectAll("g.highlightLines").remove()
+
+            // draw lines in an animated but kinda clunky way 
+            let highlightLines = svg
+              .append("g")
+              .attr("class", "highlightLines")
+              .selectAll("path")
+              .data(highlightData)
+              .join("path")
+              .attr("fill", "none")
+              .attr("stroke", "red")
+              .attr("stroke-width", 3)
+              .attr("opacity", 1)
+              .style("mix-blend-mode", "multiply")
+              .attr("d", d => lineFunc(d[1]))
+              .call(myTransition);
+            })
+          }
+
+          // svg.on("click", function() {
+          //   var coords = d3.mouse(this);
+  
+          //   // Normally we go from data to pixels, but here we're doing pixels to data
+          //   var newData= {
+          //     x: Math.round( xScale.invert(coords[0])),  // Takes the pixel number to convert to number
+          //     y: Math.round( yScale.invert(coords[1]))
+          //   };
+  
+          //   dataset.push(newData);   // Push data to our array
+  
+          //   svg.selectAll("circle")  // For new circle, go through the update process
+          //     .data(dataset)
+          //     .enter()
+          //     .append("circle")
+          //     .attr(circleAttrs)  // Get attributes from circleAttrs var
+          //     .on("mouseover", handleMouseOver)
+          //     .on("mouseout", handleMouseOut);
+          // })
+
+          // const div = d3.select("body").append("div")
+          // .attr("class", "tooltip")
+          // .style("opacity", 0);
+  
+          // this.svg
+          // .selectAll("dot")
+          // .data(state.lineData)
+          // .join("circle")
+          // .attr("r", 1)
+          // .attr("cx", function(d) { return xScale(d.Date); })
+          // .attr("cy", function(d) { return yScale(d.resTwoWeekAvg); })
+          // .on("mouseover", function(event,d) {
+          //     div.transition()
+          //     .style("opacity", .9);
+          //     // .duration(200)
+          //     div.html(formatTime(d.Date) + "<br/>" + d.Name + "<br/>" + d.resTwoWeekAvg)
+          //     .style("left", (event.pageX) + "px")
+          //     .style("top", (event.pageY - 28) + "px");
+          //     })
+          // .on("mouseout", function(d) {
+          //     div.transition()
+          //     // .duration(500)
+          //     .style("opacity", 0);
+          //     });
     
         // this.svg.call(hover, path);
 
-        // draw lines in an animated but kinda clunky way 
-          const attentionFacs = this.svg
-            .append("g")
-            .attr("class", "highlightLines")
-            .selectAll("path")
-            .data(this.highlightGrp)
-            .join("path")
-            .attr("fill", "none")
-            .attr("stroke", "red")
-            .attr("stroke-width", 3)
-            .attr("opacity", 1)
-            .style("mix-blend-mode", "multiply")
-            .attr("d", d => lineFunc(d[1]))
-            .call(myTransition)
+         this.svg.call(replay, this.highlightGrp);
+
+
+
 
         // needs work 
         // attentionFacs
@@ -227,7 +300,10 @@ class Linechart {
         //     .attr("dy", "-.5em")
         //     .text(d => `${d.Name}: ${d.State}`);
 
+
         return(this.svg.node());
+
+        
     
     }
   }

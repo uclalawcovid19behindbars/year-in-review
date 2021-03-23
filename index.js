@@ -9,7 +9,7 @@ let casecount;
 let state = {
     lineData: [],
     aggCounts: [],
-    transition: 8000,
+    transition: 7000,
     hover: null,
 };
 
