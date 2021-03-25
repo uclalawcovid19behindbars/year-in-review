@@ -1,0 +1,95 @@
+---
+title: "Load Historical Data"
+author: "Hope Johnson"
+date: "3/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+##Define package list
+Packages<-c("tidyverse", "skimr", "lubridate", "zoo", "plotly", "glue")
+.packages = Packages
+##Install CRAN packages (if not already installed)
+.inst <- .packages %in% installed.packages()
+if(length(.packages[!.inst]) > 0) install.packages(.packages[!.inst])
+##Load packages into session 
+lapply(.packages, require, character.only=TRUE)
+devtools::install_github("uclalawcovid19behindbars/behindbarstools")
+library(behindbarstools)
+
+get_first_not_na <- function(x){
+    if(all(is.na(x))){
+        return(NA)
+    }
+    return(na.omit(x)[1])
+}
+this_dir <- file.path("~", "UCLA", "code", "year-in-review")
+data_path <- file.path(this_dir, "data", "processed")
+```
+
+# Load data
+
+Load up all the states for which I have cleaned historical data ! Be sure to `git pull` from historical data repo first to get the most up-to-date data. 
+
+
+```{r}
+historical_data_path <- file.path("~", "UCLA", "code", "historical-data", "data")
+hist_dat_files <-
+    list.files(path = historical_data_path, 
+               pattern = "*.csv",
+               full.names = TRUE) 
+
+## set column types 
+jnk <- read.csv(hist_dat_files[1], nrows=1, check.names=FALSE)
+# all columns are character columns unless otherwise denoted
+ctypes <- rep("c", ncol(jnk))
+names(ctypes) <- names(jnk)
+ctypes[stringr::str_starts(names(ctypes), "Residents|Staff")] <- "d"
+ctypes[names(ctypes) == "Date"] <- "D"
+
+dat_df <- hist_dat_files %>%
+  map_df(~readr::read_csv(., col_types = paste0(ctypes, collapse = ""))) %>%
+  mutate(NameToShow = glue('{stringr::str_to_title(Name)}, {State}')) %>%
+  filter(!str_detect(Name, "(?i)statewide"),
+         !str_detect(Name, "(?i)state-wide")) 
+```
+
+## Translate data to a new format for plots
+
+Create data set with Residents.Confirmed first. 
+
+```{r}
+res_cases_dat <- dat_df %>%
+  select(State, Name, NameToShow, Date, Residents.Confirmed, Jurisdiction) %>%
+  arrange(Date) %>%
+  pivot_wider(names_from = Date, values_from = Residents.Confirmed) %>%
+  mutate(countReal = rowSums(!is.na(select(., -State, -Name, -Jurisdiction, -NameToShow)))) %>%
+  filter(countReal > 90) %>% # only keep data we have values for more than 3 months
+  select(NameToShow, `2020-03-26`:`2021-03-24`)
+
+write_csv(res_cases_dat, file.path(data_path, "cumulative_cases.csv"))
+```
+
+Next, create a data set with estimated active cases.
+
+```{r}
+active_case_dat <- dat_df %>%
+  select(State, Name, NameToShow, Date, Jurisdiction, 
+         Residents.Confirmed, Residents.Active) %>%
+  group_by(Name, State, Jurisdiction) %>%
+  arrange(Date) %>%
+  mutate(EstimatedActive = diff_roll_sum(Residents.Confirmed, Date)) %>%
+  ungroup()
+
+active_cases <- active_case_dat %>% 
+  select(State, Date, Name, NameToShow, Residents.Active, EstimatedActive) %>%
+  # use Residents.Active and estimated active cases (from cumulative cases) to get our best active case count
+  mutate(ActiveCoalesce = ifelse(!is.na(Residents.Active), Residents.Active, EstimatedActive),
+         ActiveCoalesce = ifelse(ActiveCoalesce < 0, NA, ActiveCoalesce)) %>%
+  pivot_wider(names_from = Date, values_from = ActiveCoalesce) %>%
+  mutate(countReal = rowSums(!is.na(select(., -State, -Name, -NameToShow, -Residents.Active, -EstimatedActive)))) %>%
+  filter(countReal > 90) %>% # only keep data we have values for more than 3 months
+  select(NameToShow, `2020-03-26`:`2021-03-24`)
+  
+write_csv(active_cases, file.path(data_path, "active_cases.csv"))
+```
