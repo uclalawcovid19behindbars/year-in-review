@@ -167,7 +167,7 @@ class Linechart {
         const path = this.svg
             // .append("div")
             .append("g")
-            .attr("id", "allLines")
+            .attr("class", "allLines")
             .selectAll(".path")
             .data(this.sumstat)
             .join("path")
