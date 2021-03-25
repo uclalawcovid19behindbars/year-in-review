@@ -7,8 +7,9 @@ let casecount;
 
 // global state
 let state = {
-    lineData: [],
+    series: [],
     aggCounts: [],
+    dates: [],
     transition: 7000,
     hover: null,
 };
@@ -21,11 +22,18 @@ let state = {
 
 Promise.all([
   d3.csv("./data/processed/agg_counts.csv", d3.autoType),
-  d3.csv("./data/processed/mar9.csv", d3.autoType),
+  d3.csv("./data/processed/cumulative_cases.csv", d3.autoType),
+  // d3.csv("./data/processed/active_cases.csv", d3.autoType),
 ]).then(([aggCounts, lineData]) => {
   state.aggCounts = aggCounts;
-  state.lineData = lineData;
-  // console.log("state: ", state);
+  // state.lineData = lineData;
+  const columns = lineData.columns.slice(1);
+  state.dates = columns.map(d3.timeParse("%Y-%m-%d"));
+  state.series = lineData.map(d => ({
+    name: d.NameToShow,
+    values: columns.map(k => +d[k])
+  }))
+  console.log("state: ", state);
   init();
 });
 

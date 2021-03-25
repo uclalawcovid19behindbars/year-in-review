@@ -15,16 +15,6 @@ body {
   padding-top: 1em;
 }
 
-path:hover {
-  stroke: orange;
-}
-
-path.trend { 
-  stroke: #383c49;
-  stroke-width: 2;
-  fill: none;
-}
-
 /* Count styles */
 #count {
   display: flex;
