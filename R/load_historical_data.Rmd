@@ -59,13 +59,24 @@ dat_df <- hist_dat_files %>%
 Create data set with Residents.Confirmed first. 
 
 ```{r}
+## might need to merge this with a column of dates to get "fill" working properly 
+## investigate more why it's working for some and not others ! 
+
+## another idea! Make the first date for every facility "0" 
+## so that "fill" has something to draw from 
+
 res_cases_dat <- dat_df %>%
   select(State, Name, NameToShow, Date, Residents.Confirmed, Jurisdiction) %>%
   arrange(Date) %>%
+  group_by(State, Name, Jurisdiction) %>%
+  fill(Residents.Confirmed) %>% # fill in missing values with last value (above)
+  ungroup() %>%
   pivot_wider(names_from = Date, values_from = Residents.Confirmed) %>%
   mutate(countReal = rowSums(!is.na(select(., -State, -Name, -Jurisdiction, -NameToShow)))) %>%
   filter(countReal > 90) %>% # only keep data we have values for more than 3 months
-  select(NameToShow, `2020-03-26`:`2021-03-24`)
+  select(NameToShow, `2020-03-26`:`2021-03-24`) 
+
+# add conditional highlight column
 
 write_csv(res_cases_dat, file.path(data_path, "cumulative_cases.csv"))
 ```
@@ -88,7 +99,7 @@ active_cases <- active_case_dat %>%
          ActiveCoalesce = ifelse(ActiveCoalesce < 0, NA, ActiveCoalesce)) %>%
   pivot_wider(names_from = Date, values_from = ActiveCoalesce) %>%
   mutate(countReal = rowSums(!is.na(select(., -State, -Name, -NameToShow, -Residents.Active, -EstimatedActive)))) %>%
-  filter(countReal > 90) %>% # only keep data we have values for more than 3 months
+  # filter(countReal > 30) %>% # only keep data we have values for more than 1 month
   select(NameToShow, `2020-03-26`:`2021-03-24`)
   
 write_csv(active_cases, file.path(data_path, "active_cases.csv"))
