@@ -31,7 +31,6 @@ data_path <- file.path(this_dir, "data", "processed")
 
 Load up all the states for which I have cleaned historical data ! Be sure to `git pull` from historical data repo first to get the most up-to-date data. 
 
-
 ```{r}
 historical_data_path <- file.path("~", "UCLA", "code", "historical-data", "data")
 hist_dat_files <-
@@ -59,24 +58,58 @@ dat_df <- hist_dat_files %>%
 Create data set with Residents.Confirmed first. 
 
 ```{r}
-## might need to merge this with a column of dates to get "fill" working properly 
-## investigate more why it's working for some and not others ! 
+# TO DO : add conditional highlight column
 
-## another idea! Make the first date for every facility "0" 
-## so that "fill" has something to draw from 
-
-res_cases_dat <- dat_df %>%
-  select(State, Name, NameToShow, Date, Residents.Confirmed, Jurisdiction) %>%
+long_dat <- dat_df %>%
+  select(Facility.ID, State, Name, NameToShow, Date, Residents.Confirmed, Jurisdiction) %>%
   arrange(Date) %>%
-  group_by(State, Name, Jurisdiction) %>%
-  fill(Residents.Confirmed) %>% # fill in missing values with last value (above)
-  ungroup() %>%
-  pivot_wider(names_from = Date, values_from = Residents.Confirmed) %>%
+  group_by(State, Name, Jurisdiction) %>% # don't have facility.ID for 100%
+  mutate(lag_value = dplyr::lag(Residents.Confirmed, order_by = Date),
+         diff = Residents.Confirmed - lag_value,
+         Residents.Confirmed_cln = ifelse(diff < -5, NA, Residents.Confirmed) # drops in cumulative cases >5 become NA
+         ) %>% 
+  fill(Residents.Confirmed_cln) %>% # fill in missing values with last value (above)
+  ungroup()
+
+filled_dates <- long_dat %>% 
+  group_by(State, Name, Jurisdiction) %>% # don't have facility.ID for 100%
+  complete(Date = full_seq(Date, 1)) %>%
+  fill(Residents.Confirmed_cln, #fill in missing values with last value (above)
+       NameToShow,
+       Facility.ID) %>% 
+  relocate(Facility.ID, State, Name, NameToShow, Date, Residents.Confirmed, Residents.Confirmed_cln) %>%
+  ungroup()
+
+filled_dates %>% filter(Name == "LOS ANGELES JAILS") %>% View()
+long_dat %>% filter(Name == "LOS ANGELES JAILS") %>% View()
+
+## check long dat looks ok
+# filled_dates %>%
+#   ggplot(.) +
+#   ggplot2::geom_line(aes(
+#     x = Date,
+#     y = Residents.Confirmed_cln, # change 7-day average, 15-day average, etc here
+#     group = Facility.ID)) +
+#   # geom_line(aes(group = highlight_fac, color = "red")) +
+#   scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
+#   scale_y_continuous(labels = scales::comma) +
+#   labs(x = "",
+#        y = "Cumulative COVID-19 Cases Among Incarcerated People",
+#        title = "COVID-19 Cases In Prison") +
+#   theme(legend.position = "none")
+
+res_cases_dat <- filled_dates %>%
+  select(State, Name, NameToShow, Date, Residents.Confirmed_cln, Jurisdiction) %>%
+  arrange(Date) %>%
+  pivot_wider(names_from = Date, values_from = Residents.Confirmed_cln) %>%
   mutate(countReal = rowSums(!is.na(select(., -State, -Name, -Jurisdiction, -NameToShow)))) %>%
   filter(countReal > 90) %>% # only keep data we have values for more than 3 months
   select(NameToShow, `2020-03-26`:`2021-03-24`) 
 
-# add conditional highlight column
+
+res_cases_dat %>% 
+  filter(NameToShow == "Los Angeles Jails, California") %>% 
+  View()
 
 write_csv(res_cases_dat, file.path(data_path, "cumulative_cases.csv"))
 ```

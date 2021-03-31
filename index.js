@@ -1,6 +1,5 @@
 import { Linechart } from "./js/Linechart.js";
 import { CaseCount } from "./js/CaseCount.js"
-// import { Linechart } from "./js/Linechart.js";
  
 let linechart;
 let casecount;

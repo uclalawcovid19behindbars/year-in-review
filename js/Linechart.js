@@ -112,7 +112,7 @@ class Linechart {
           const s = d3.least(state.series, d => Math.abs(d.values[i] - ym));
           path.attr("stroke", d => d === s ? null : "#ddd").filter(d => d === s).raise();
           dot.attr("transform", `translate(${xScale(state.dates[i])},${yScale(s.values[i])})`);
-          dot.select("text").text(s.name);
+          dot.select("text").text(s.name + ", " + state.dates[i] + ", " + s.values[i]);
         }
       
         function entered() {
