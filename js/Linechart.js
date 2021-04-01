@@ -131,35 +131,23 @@ class Linechart {
         .x((d, i) => xScale(state.dates[i]))
         .y(d => yScale(d))
 
-      // function tweenDash() {
-      //     const l = this.getTotalLength(),
-      //           i = d3.interpolateString("0," + l, l + "," + l);
-      //     return function(t) { return i(t) };
-      //   }
+      function tweenDash() {
+          const l = this.getTotalLength(),
+                i = d3.interpolateString("0," + l, l + "," + l);
+          return function(t) { return i(t) };
+        }
 
-      // function myTransition(path) {
-      //     path.transition()
-      //         .duration(state.transition)
-      //         .attrTween("stroke-dasharray", tweenDash)
-      //         .on("end", () => { d3.select(this).call(myTransition); })
-      //         .transition()
-      //         .style("stroke", "gray");
-      //   }
+      function myTransition(path) {
+          path.transition()
+              .duration(state.transition)
+              .attrTween("stroke-dasharray", tweenDash)
+              .on("end", () => { d3.select(this).call(myTransition); })
+              .transition()
+              .style("stroke", "gray");
+        }
 
       // const filteredData = state.series.filter(function(d) {return line.defined(d[1])})
       // console.log("filteredData", filteredData);
-
-      // const pathInterpolated = this.svg.append("g")
-      //   .attr("fill", "none")
-      //   .attr("stroke", "#ccc")
-      //   .attr("stroke-width", 1.5)
-      //   .attr("stroke-linejoin", "round")
-      //   .attr("stroke-linecap", "round")
-      //   .selectAll("path")
-      //   .datum(myData.filter(line.defined(myData.values)))
-      //   .join("path")
-      //   .style("mix-blend-mode", "multiply")
-      //   .attr("d", d => line(d.values));
 
       const path = this.svg.append("g")
         .attr("fill", "none")
@@ -172,49 +160,34 @@ class Linechart {
         .join("path")
         .style("mix-blend-mode", "multiply")
         .attr("d", d => line(d.values));
-
-      // this.svg.append("path")
-      //   .datum(state.series.filter(line.defined()))
-      //   .attr("stroke", "#ccc")
-      //   .attr("d", line);
     
+      var replayButton = d3.select("button");
 
-        // var pathEl = path.node();
-        // var pathLength = pathEl.getTotalLength();
-        // var BBox = pathEl.getBBox();
-        // var scale = pathLength/BBox.width;
-        // var offsetLeft = document.getElementById("linechart").offsetLeft;
-        // console.log("offsetLeft", offsetLeft)
-        // var replayButton = d3.select("button");
+      function replay(svg, highlightData) { 
+        replayButton.on("click", function() {
 
-      // function replay(svg, highlightData) { 
-      //   replayButton.on("click", function() {
+        d3.selectAll("g.highlightLines").remove()
 
-      //   d3.selectAll("g.highlightLines").remove()
-
-      //   // draw lines in an animated but kinda clunky way 
-      //   let highlightLines = svg
-      //     .append("g")
-      //     .attr("class", "highlightLines")
-      //     .selectAll("path")
-      //     .data(highlightData)
-      //     .join("path")
-      //     .attr("fill", "none")
-      //     .attr("stroke", "red")
-      //     .attr("stroke-width", 3)
-      //     .attr("opacity", 1)
-      //     .style("mix-blend-mode", "multiply")
-      //     .attr("d", d => lineFunc(d[1]))
-      //     .call(myTransition);
-      //   })
-      // }
+        // draw lines in an animated but kinda clunky way 
+        let highlightLines = svg
+          .append("g")
+          .attr("class", "highlightLines")
+          .selectAll("path")
+          .data(highlightData)
+          .join("path")
+          .attr("fill", "none")
+          .attr("stroke", "red")
+          .attr("stroke-width", 3)
+          .attr("opacity", 1)
+          .style("mix-blend-mode", "multiply")
+          .attr("d", d => line(d.values))
+          .call(myTransition);
+        })
+      }
 
       this.svg.call(hover, path);
-      // this.svg.call(hover, pathInterpolated);
-
+      this.svg.call(replay, state.series); // change this "state.series" to be a subset of data 
       return(this.svg.node());
-
-        
     
     }
   }
