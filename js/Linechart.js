@@ -105,7 +105,9 @@ class Linechart {
           const s = d3.least(state.series, d => Math.abs(d.values[i] - ym));
           path.attr("stroke", d => d === s ? null : "#ddd").filter(d => d === s).raise();
           dot.attr("transform", `translate(${xScale(state.dates[i])},${yScale(s.values[i])})`);
-          dot.select("text").text(s.name + ", " + state.dates[i] + ", " + s.values[i]);
+          // dot.select("text").text(s.name + ", " + state.dates[i] + ", " + s.values[i]);
+          dot.select("text").text(s.name + ", " + s.values[i]);
+
         }
       
         function entered() {
@@ -149,23 +151,28 @@ class Linechart {
         .data(state.series)
         .join("path")
         .style("mix-blend-mode", "multiply")
-        .style("opacity", 0)
-        .transition() 
-        .delay(state.transition) // wait for highlight lines to get drawn
-        .transition()
-        .duration(1000)
-        // .delay(function(){ return segment_i*10; })
-        .style("opacity", 0.2)
-        // .ease("cubicIn")
-        .transition()
-        .duration(1000)
-        // .delay(function(){ return segment_i*13; })
-        // .ease("cubicOut")
-        .style("opacity", 0.4)
         .attr("d", d => line(d.values))
-        .transition() 
-        .delay(state.transition) // wait for highlight lines to get drawn
-        .style("opacity", 0.8);
+        .style("opacity", 0)
+
+      var t = d3.transition()
+        .delay(state.transition)
+        .duration(state.transition)
+        .ease(d3.easeLinear);
+
+    const pathWithTransition = this.svg.append("g")
+      .attr("fill", "none")
+      .attr("stroke", "steelblue")
+      .attr("stroke-width", 1.5)
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-linecap", "round")
+      .selectAll("path")
+      .data(state.series)
+      .join("path")
+      .style("mix-blend-mode", "multiply")
+      .attr("d", d => line(d.values))
+      .style("opacity", 0)
+      .transition(t)
+      .style("opacity", 1)
 
       function drawHighlightLines(svg, highlightData) {
         let highlightLines = svg
@@ -194,6 +201,7 @@ class Linechart {
         })
       }
 
+      this.svg.call(hover, path); // hover stopped working : ( 
       // draw highlight lines the first time
       this.svg.call(drawHighlightLines, this.highlightFacs);
       // re-draw highlight lines on button click
