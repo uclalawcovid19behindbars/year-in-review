@@ -87,6 +87,14 @@ filled_dates <- long_dat %>%
        NameToShow,
        Facility.ID,
        highlightFac) %>% 
+  arrange(Date) %>%
+  ## recalculate lags
+  mutate(lag_value = dplyr::lag(Residents.Confirmed_cln, order_by = Date),
+         diff = Residents.Confirmed_cln - lag_value,
+         perc_change = diff / lag_value,
+         perc_change = ifelse(is.infinite(perc_change), 1, perc_change),
+         large_perc_change = ifelse(perc_change > .4, TRUE, FALSE)
+         ) %>%
   relocate(Facility.ID, State, Name, NameToShow, Date, Residents.Confirmed, Residents.Confirmed_cln) %>%
   ungroup()
 
@@ -99,14 +107,15 @@ filled_dates %>%
   ggplot2::geom_line(aes(
     x = Date,
     y = Residents.Confirmed_cln, # change 7-day average, 15-day average, etc here
-    group = Facility.ID)) +
+    group = Facility.ID,
+    color = large_perc_change)) +
   # geom_line(aes(group = highlight_fac, color = "red")) +
   scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
   scale_y_continuous(labels = scales::comma) +
   labs(x = "",
        y = "Cumulative COVID-19 Cases Among Incarcerated People",
-       title = "COVID-19 Cases In Prison") +
-  theme(legend.position = "none")
+       title = "COVID-19 Cases In Prison")# +
+  # theme(legend.position = "none")
 
 res_cases_dat <- filled_dates %>%
   select(State, Name, NameToShow, Date, Residents.Confirmed_cln, 

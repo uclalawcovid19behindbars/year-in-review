@@ -137,10 +137,7 @@ class Linechart {
               .on("end", () => { d3.select(this).call(myTransition); })
               .transition()
               .style("stroke", "gray");
-        }
-
-      // const filteredData = state.series.filter(function(d) {return line.defined(d[1])})
-      // console.log("filteredData", filteredData);
+      }
 
       const path = this.svg.append("g")
         .attr("fill", "none")
@@ -152,36 +149,56 @@ class Linechart {
         .data(state.series)
         .join("path")
         .style("mix-blend-mode", "multiply")
-        .attr("d", d => line(d.values));
-    
+        .style("opacity", 0)
+        .transition() 
+        .delay(state.transition) // wait for highlight lines to get drawn
+        .transition()
+        .duration(1000)
+        // .delay(function(){ return segment_i*10; })
+        .style("opacity", 0.2)
+        // .ease("cubicIn")
+        .transition()
+        .duration(1000)
+        // .delay(function(){ return segment_i*13; })
+        // .ease("cubicOut")
+        .style("opacity", 0.4)
+        .attr("d", d => line(d.values))
+        .transition() 
+        .delay(state.transition) // wait for highlight lines to get drawn
+        .style("opacity", 0.8);
+
+      function drawHighlightLines(svg, highlightData) {
+        let highlightLines = svg
+        .append("g")
+        .attr("class", "highlightLines")
+        .selectAll("path")
+        .data(highlightData)
+        .join("path")
+        .attr("fill", "none")
+        .attr("stroke", "red")
+        .attr("stroke-width", 3)
+        // .attr("opacity", 0)
+        .style("mix-blend-mode", "multiply")
+        .attr("d", d => line(d.values))
+        .call(myTransition);
+      }
+
+      // select replay button 
       var replayButton = d3.select("button");
 
+      // re-draw highlight lines on button click
       function replay(svg, highlightData) { 
         replayButton.on("click", function() {
-
         d3.selectAll("g.highlightLines").remove()
-
-        // draw lines in an animated but kinda clunky way 
-        let highlightLines = svg
-          .append("g")
-          .attr("class", "highlightLines")
-          .selectAll("path")
-          .data(highlightData)
-          .join("path")
-          .attr("fill", "none")
-          .attr("stroke", "red")
-          .attr("stroke-width", 3)
-          .attr("opacity", 1)
-          .style("mix-blend-mode", "multiply")
-          .attr("d", d => line(d.values))
-          .call(myTransition);
+        drawHighlightLines(svg, highlightData)
         })
       }
 
-      this.svg.call(hover, path);
-      this.svg.call(replay, this.highlightFacs); // change this "state.series" to be a subset of data 
+      // draw highlight lines the first time
+      this.svg.call(drawHighlightLines, this.highlightFacs);
+      // re-draw highlight lines on button click
+      this.svg.call(replay, this.highlightFacs); 
       return(this.svg.node());
-    
     }
   }
   
