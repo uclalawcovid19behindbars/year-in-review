@@ -26,10 +26,11 @@ Promise.all([
 ]).then(([aggCounts, lineData]) => {
   state.aggCounts = aggCounts;
   // state.lineData = lineData;
-  const columns = lineData.columns.slice(1);
+  const columns = lineData.columns.slice(2);
   state.dates = columns.map(d3.timeParse("%Y-%m-%d"));
   state.series = lineData.map(d => ({
     name: d.NameToShow,
+    highlightFac: d.highlightFac,
     values: columns.map(k => +d[k])
   }))
   console.log("state: ", state);

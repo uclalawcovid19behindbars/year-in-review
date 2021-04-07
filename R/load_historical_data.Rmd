@@ -60,6 +60,12 @@ Create data set with Residents.Confirmed first.
 ```{r}
 # TO DO : add conditional highlight column
 
+facs_to_highlight <- c(100, 
+                       652, 
+                       83,
+                       115,
+                       113)
+
 long_dat <- dat_df %>%
   select(Facility.ID, State, Name, NameToShow, Date, Residents.Confirmed, Jurisdiction) %>%
   arrange(Date) %>%
@@ -69,42 +75,47 @@ long_dat <- dat_df %>%
          Residents.Confirmed_cln = ifelse(diff < -5, NA, Residents.Confirmed) # drops in cumulative cases >5 become NA
          ) %>% 
   fill(Residents.Confirmed_cln) %>% # fill in missing values with last value (above)
-  ungroup()
+  ungroup() %>%
+  mutate(highlightFac = ifelse(Facility.ID %in% facs_to_highlight,
+                               TRUE,
+                               FALSE))
 
 filled_dates <- long_dat %>% 
   group_by(State, Name, Jurisdiction) %>% # don't have facility.ID for 100%
   complete(Date = full_seq(Date, 1)) %>%
   fill(Residents.Confirmed_cln, #fill in missing values with last value (above)
        NameToShow,
-       Facility.ID) %>% 
+       Facility.ID,
+       highlightFac) %>% 
   relocate(Facility.ID, State, Name, NameToShow, Date, Residents.Confirmed, Residents.Confirmed_cln) %>%
   ungroup()
 
-filled_dates %>% filter(Name == "LOS ANGELES JAILS") %>% View()
-long_dat %>% filter(Name == "LOS ANGELES JAILS") %>% View()
+# filled_dates %>% filter(Name == "LOS ANGELES JAILS") %>% View() # 360 obs
+# long_dat %>% filter(Name == "LOS ANGELES JAILS") %>% View()
 
 ## check long dat looks ok
-# filled_dates %>%
-#   ggplot(.) +
-#   ggplot2::geom_line(aes(
-#     x = Date,
-#     y = Residents.Confirmed_cln, # change 7-day average, 15-day average, etc here
-#     group = Facility.ID)) +
-#   # geom_line(aes(group = highlight_fac, color = "red")) +
-#   scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
-#   scale_y_continuous(labels = scales::comma) +
-#   labs(x = "",
-#        y = "Cumulative COVID-19 Cases Among Incarcerated People",
-#        title = "COVID-19 Cases In Prison") +
-#   theme(legend.position = "none")
+filled_dates %>%
+  ggplot(.) +
+  ggplot2::geom_line(aes(
+    x = Date,
+    y = Residents.Confirmed_cln, # change 7-day average, 15-day average, etc here
+    group = Facility.ID)) +
+  # geom_line(aes(group = highlight_fac, color = "red")) +
+  scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = "",
+       y = "Cumulative COVID-19 Cases Among Incarcerated People",
+       title = "COVID-19 Cases In Prison") +
+  theme(legend.position = "none")
 
 res_cases_dat <- filled_dates %>%
-  select(State, Name, NameToShow, Date, Residents.Confirmed_cln, Jurisdiction) %>%
+  select(State, Name, NameToShow, Date, Residents.Confirmed_cln, 
+         Jurisdiction, highlightFac) %>%
   arrange(Date) %>%
   pivot_wider(names_from = Date, values_from = Residents.Confirmed_cln) %>%
-  mutate(countReal = rowSums(!is.na(select(., -State, -Name, -Jurisdiction, -NameToShow)))) %>%
+  mutate(countReal = rowSums(!is.na(select(., -State, -Name, -Jurisdiction, -NameToShow, -highlightFac)))) %>%
   filter(countReal > 90) %>% # only keep data we have values for more than 3 months
-  select(NameToShow, `2020-03-26`:`2021-03-24`) 
+  select(NameToShow, highlightFac, `2020-03-26`:`2021-04-05`) 
 
 
 res_cases_dat %>% 

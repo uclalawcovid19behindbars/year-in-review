@@ -14,6 +14,10 @@ class Linechart {
         .attr("width", this.width)
         .attr("height", this.height);
 
+      // create data grouping of facilities to highlight
+      this.highlightFacs = state.series.filter(d => d["highlightFac"] == "TRUE");  
+      console.log("facs to highlight", this.highlightFacs);
+
     // this.sumstat = d3.group(state.lineData, d => d["Facility.ID"]);
     // // filter out facilities to highlight 
     // this.sumstat.delete(100)
@@ -22,17 +26,6 @@ class Linechart {
     // this.sumstat.delete(115)
     // this.sumstat.delete(113)
     // console.log("sumstat post-delete", this.sumstat);
-
-    // // create new group with facilities to highlight 
-    // const highlightFac1 = state.lineData.filter(d => d["Facility.ID"] == 100);  // san quentin
-    // // const highlightFac2 = state.lineData.filter(d => d["Facility.ID"] == 652); // bellamy creek
-    // const highlightFac3 = state.lineData.filter(d => d["Facility.ID"] == 83);   // avenal state prison
-    // const highlightFac4 = state.lineData.filter(d => d["Facility.ID"] == 115); // ca correctional training facility 
-    // const highlightFac5 = state.lineData.filter(d => d["Facility.ID"] == 113); // chuckawalla valley training 
-    // // const highlightFacs = highlightFac1.concat(highlightFac2, highlightFac3, highlightFac4, highlightFac5)
-    // const highlightFacs = highlightFac1.concat(highlightFac3, highlightFac4, highlightFac5)
-
-    // this.highlightGrp = d3.group(highlightFacs, d => d["Facility.ID"])
 
     }
   
@@ -186,7 +179,7 @@ class Linechart {
       }
 
       this.svg.call(hover, path);
-      this.svg.call(replay, state.series); // change this "state.series" to be a subset of data 
+      this.svg.call(replay, this.highlightFacs); // change this "state.series" to be a subset of data 
       return(this.svg.node());
     
     }
