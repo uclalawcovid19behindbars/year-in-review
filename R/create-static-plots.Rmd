@@ -27,7 +27,30 @@ this_dir <- file.path("~", "UCLA", "code", "year-in-review")
 data_path <- file.path(this_dir, "data", "processed")
 ```
 
-# Load data
+# Load most recently-scraped data and create some plots 
+
+```{r}
+recent_dat <- read_scrape_data()
+
+state_df <- recent_dat %>%
+  group_by(State, Jurisdiction) %>%
+  count()
+
+state_df %>% 
+  group_by(State) %>%
+  mutate(statesum = sum(n)) %>%
+  arrange(desc(statesum)) %>%
+  ungroup() %>%
+  ggplot(data=., aes(x = reorder(State, -statesum), 
+                          y = n, 
+                          fill = Jurisdiction)) +
+  geom_bar(stat="identity") %>%
+  coord_flip()
+
+```
+
+
+# Load historical data
 
 Get data pre-November 11 2020, bind to with data up until February 24 2021, slightly cleaned! 
 
