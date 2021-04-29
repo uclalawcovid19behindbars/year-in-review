@@ -1,7 +1,7 @@
 ---
 title: "Year-in-review report static graphs"
 author: "Hope Johnson"
-date: "3/3/2021"
+date: "4/29/2021"
 output: html_document
 ---
 
@@ -25,27 +25,209 @@ get_first_not_na <- function(x){
 }
 this_dir <- file.path("~", "UCLA", "code", "year-in-review")
 data_path <- file.path(this_dir, "data", "processed")
+plot_path <- file.path(this_dir, "plots")
 ```
 
-# Load most recently-scraped data and create some plots 
+# Create state-aggregated plots 
 
 ```{r}
+## LOAD LATEST STATE-AGGREGATED DATA 
 recent_dat <- read_scrape_data()
+state_aggregated_counts <- read_csv("https://raw.githubusercontent.com/uclalawcovid19behindbars/data/master/latest-data/state_aggregate_counts.csv")
 
+long_counts <- state_aggregated_counts %>% 
+  pivot_longer(!State, names_to = "metric", values_to = "count")
+```
+
+```{r}
 state_df <- recent_dat %>%
-  group_by(State, Jurisdiction) %>%
+  filter(Jurisdiction == "state") %>%
+  group_by(State, 
+           # Jurisdiction
+           ) %>%
   count()
 
-state_df %>% 
+## NUMBER OF FACILITIES REPORTED BY STATE DOCs
+current <- state_df %>% 
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE)) %>%
   group_by(State) %>%
   mutate(statesum = sum(n)) %>%
   arrange(desc(statesum)) %>%
   ungroup() %>%
-  ggplot(data=., aes(x = reorder(State, -statesum), 
+  ggplot(data=., aes(x = reorder(state_short, -statesum), 
                           y = n, 
-                          fill = Jurisdiction)) +
-  geom_bar(stat="identity") %>%
-  coord_flip()
+                          # fill = Jurisdiction
+                     )) +
+  geom_bar(stat="identity") + 
+  behindbarstools::theme_behindbars(base_size = 13) + 
+  scale_color_bbdiscrete() + 
+  labs(y = "# of Facilities Reported by State DOC")
+ggsave(file.path(plot_path, "n_facs_by_state.png"), current, width = 14, height = 10)
+
+## TOTAL INCARCERATED INFECTIONS BY STATE
+## account for states with no data
+(state_aggregated_counts %>%
+  filter(is.na(Residents.Confirmed)) %>%
+  pull(State))
+residents_confirmed <- state_aggregated_counts %>% 
+  filter(!is.na(Residents.Confirmed)) %>%
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  ggplot(data=., aes(x = reorder(state_short, Residents.Confirmed), 
+                          y = Residents.Confirmed, 
+                          # fill = Jurisdiction
+                     )) +
+  geom_bar(stat="identity") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Cumulative COVID-19 Infections Among Incarcerated People",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}')
+       ) + 
+  coord_flip() + 
+  scale_y_continuous(expand = c(0, 0), labels = scales::comma)
+ggsave(file.path(plot_path, "residents_confirmed.png"), residents_confirmed, width = 14, height = 10)
+
+## TOTAL INCARCERATED DEATHS BY STATE
+## account for states with no data
+(state_aggregated_counts %>%
+  filter(is.na(Residents.Deaths)) %>%
+  pull(State))
+resident_deaths <- state_aggregated_counts %>% 
+  filter(!is.na(Residents.Deaths)) %>%
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  ggplot(data=., aes(x = reorder(state_short, Residents.Deaths), 
+                          y = Residents.Deaths, 
+                     )) +
+  geom_bar(stat="identity") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Cumulative COVID-19 Deaths Among Incarcerated People",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}')
+       ) + 
+  coord_flip() + 
+  scale_y_continuous(expand = c(0, 0), labels = scales::comma)
+ggsave(file.path(plot_path, "resident_deaths.png"), resident_deaths, width = 14, height = 10)
+
+
+## TOTAL STAFF INFECTIONS BY STATE
+## account for states with no data
+(state_aggregated_counts %>%
+  filter(is.na(Staff.Confirmed)) %>%
+  pull(State))
+staff_confirmed <- state_aggregated_counts %>% 
+  filter(!is.na(Staff.Confirmed)) %>%
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  ggplot(data=., aes(x = reorder(state_short, Staff.Confirmed), 
+                          y = Staff.Confirmed, 
+                          # fill = Jurisdiction
+                     )) +
+  geom_bar(stat="identity") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Cumulative COVID-19 Infections Among Staff",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}\nMissing data from ICE, Mississippi, and Arkansas')
+  ) + 
+  coord_flip() + 
+  scale_y_continuous(expand = c(0, 0), labels = scales::comma) 
+ggsave(file.path(plot_path, "staff_confirmed.png"), staff_confirmed, width = 14, height = 10)
+
+## TOTAL STAFF DEATHS BY STATE
+## account for states with no data
+(state_aggregated_counts %>%
+  filter(is.na(Staff.Deaths)) %>%
+  pull(State))
+staff_deaths <- state_aggregated_counts %>% 
+  filter(!is.na(Staff.Deaths),
+         Staff.Deaths > 0 ) %>%
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  ggplot(data=., aes(x = reorder(state_short, Staff.Deaths), 
+                          y = Staff.Deaths, 
+                     )) +
+  geom_bar(stat="identity") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Cumulative COVID-19 Deaths Among Staff",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}\nMissing data from ICE, AZ, MA, MS, NE, NJ, OK, UT, WI, WY')
+       ) + 
+  coord_flip() + 
+  scale_y_continuous(expand = c(0, 0), labels = scales::comma) 
+ggsave(file.path(plot_path, "staff_deaths.png"), staff_deaths, width = 14, height = 10)
+```
+
+Try making some spine plots! 
+```{r}
+## INFECTIONS BY STATE (COMBINED)
+## TO DO : add a rates version of this plot, using this: 
+## https://github.com/themarshallproject/COVID_prison_data/blob/master/data/staff_populations.csv
+mp_dat <- behindbarstools::read_mpap_data()
+
+spine_plot_cases <- long_counts %>%
+  filter(metric %in% c("Residents.Confirmed", "Staff.Confirmed"),
+         !is.na(count)) %>%
+  mutate(plot_count = ifelse(metric == "Staff.Confirmed", -1*count, count)) %>% 
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  ggplot(data=., aes(
+                      x = reorder(state_short, plot_count),
+                      # x = state_short,
+                      y = plot_count, 
+                      fill = metric
+                     )) +
+  geom_bar(stat="identity") + 
+  # geom_text(aes(x=state_short,
+  #               y=plot_count,
+  #               label=abs(plot_count)),
+  #               vjust = ifelse(plot_count >= 0, 0, 1)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Cumulative COVID-19 Infections",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}\nMissing staff data from ICE, Mississippi, and Arkansas')
+       ) + 
+  coord_flip() + 
+  scale_y_continuous(labels = scales::comma)
+ggsave(file.path(plot_path, "spine_plot_cases.png"), spine_plot_cases, width = 14, height = 10)
+
+## DEATHS VERSION
+spine_plot_deaths <- long_counts %>%
+  filter(metric %in% c("Residents.Deaths", "Staff.Deaths"),
+         !is.na(count)) %>%
+  mutate(plot_count = ifelse(metric == "Staff.Deaths", -1*count, count)) %>% 
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  ggplot(data=., aes(
+                      x = reorder(state_short, plot_count),
+                      # x = state_short,
+                      y = plot_count, 
+                      fill = metric
+                     )) +
+  geom_bar(stat="identity") + 
+  # geom_text(aes(x=state_short,
+  #               y=plot_count,
+  #               label=abs(plot_count)),
+  #               vjust = ifelse(plot_count >= 0, 0, 1)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Cumulative COVID-19 Deaths",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}\nMissing staff deaths data from many places')
+       ) + 
+  coord_flip() + 
+  scale_y_continuous(labels = scales::comma)
+ggsave(file.path(plot_path, "spine_plot_deaths.png"), spine_plot_deaths, width = 14, height = 10)
 
 ```
 
