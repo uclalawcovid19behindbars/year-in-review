@@ -188,23 +188,20 @@ spine_plot_dat <- long_with_pop %>%
                              count / april_pop.incarcerated, 
                              count / april_pop.staff)) %>% 
   ## make staff negative for spine effect
-  mutate(plot_count = ifelse(metric == "Staff.Confirmed", -1*plot_count, plot_count)) %>% 
+  mutate(plot_count_spine = ifelse(metric == "Staff.Confirmed", -1*plot_count, plot_count)) %>% 
   mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
-         state_short = ifelse(is.na(state_short), State, state_short)) 
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  group_by(State) %>% 
+  mutate(plt_order = sum(plot_count, na.rm = T)) %>% 
+  ungroup()
 
 spine_plot_cases <- spine_plot_dat %>%
   ggplot(data=., aes(
-    ## this is not working because of the way the data is structured :( 
-                      x = reorder(state_short, -plot_count),
-                      # x = state_short,
-                      y = plot_count, 
+                      x = reorder(state_short, plt_order),
+                      y = plot_count_spine, 
                       fill = metric
                      )) +
   geom_bar(stat="identity") + 
-  # geom_text(aes(x=state_short,
-  #               y=plot_count,
-  #               label=abs(plot_count)),
-  #               vjust = ifelse(plot_count >= 0, 0, 1)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
   labs(title = "Cumulative COVID-19 Infections",
@@ -213,8 +210,8 @@ spine_plot_cases <- spine_plot_dat %>%
        caption = glue('Data updated on {Sys.Date()}\nMissing staff data from ICE, Mississippi, and Arkansas')
        ) + 
   coord_flip() + 
-  scale_y_continuous(labels = scales::comma)
-ggsave(file.path(plot_path, "spine_plot_cases.png"), spine_plot_cases, width = 14, height = 10)
+  scale_y_continuous(labels = scales::percent)
+ggsave(file.path(plot_path, "spine_plot_cases_rate.png"), spine_plot_cases, width = 14, height = 10)
 
 ## DEATHS VERSION
 spine_plot_deaths <- long_counts %>%
