@@ -168,18 +168,33 @@ ggsave(file.path(plot_path, "staff_deaths.png"), staff_deaths, width = 14, heigh
 Try making some spine plots! 
 ```{r}
 ## INFECTIONS BY STATE (COMBINED)
-## TO DO : add a rates version of this plot, using this: 
-## https://github.com/themarshallproject/COVID_prison_data/blob/master/data/staff_populations.csv
-mp_dat <- behindbarstools::read_mpap_data()
+incarcerated_pops <- read_csv("https://raw.githubusercontent.com/themarshallproject/COVID_prison_data/master/data/prison_populations.csv") %>% 
+  select(name, april_pop)
+staff_pops <- read_csv("https://raw.githubusercontent.com/themarshallproject/COVID_prison_data/master/data/staff_populations.csv")
 
-spine_plot_cases <- long_counts %>%
+long_with_pop <- long_counts %>% 
+  left_join(incarcerated_pops, by = c("State" = "name")) %>%
+  left_join(staff_pops, by =c("State" = "name"), 
+            suffix = c(".incarcerated", ".staff")) %>%
+  select(-dplyr::starts_with("as_of_date"),
+         -dplyr::starts_with("notes"),
+         -dplyr::starts_with("abbreviation"))
+
+spine_plot_dat <- long_with_pop %>%
   filter(metric %in% c("Residents.Confirmed", "Staff.Confirmed"),
          !is.na(count)) %>%
-  mutate(plot_count = ifelse(metric == "Staff.Confirmed", -1*count, count)) %>% 
+  ## create a rate 
+  mutate(plot_count = ifelse(metric == "Residents.Confirmed", 
+                             count / april_pop.incarcerated, 
+                             count / april_pop.staff)) %>% 
+  ## make staff negative for spine effect
+  mutate(plot_count = ifelse(metric == "Staff.Confirmed", -1*plot_count, plot_count)) %>% 
   mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
-         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+         state_short = ifelse(is.na(state_short), State, state_short)) 
+
+spine_plot_cases <- spine_plot_dat %>%
   ggplot(data=., aes(
-                      x = reorder(state_short, plot_count),
+                      x = reorder(state_short, -plot_count),
                       # x = state_short,
                       y = plot_count, 
                       fill = metric
