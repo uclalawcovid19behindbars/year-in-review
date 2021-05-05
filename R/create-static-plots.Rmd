@@ -194,6 +194,7 @@ spine_plot_dat <- long_with_pop %>%
 
 spine_plot_cases <- spine_plot_dat %>%
   ggplot(data=., aes(
+    ## this is not working because of the way the data is structured :( 
                       x = reorder(state_short, -plot_count),
                       # x = state_short,
                       y = plot_count, 
