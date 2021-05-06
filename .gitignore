@@ -3,3 +3,4 @@ Data/.DS_Store
 data/processed/.DS_Store
 .Rproj.user/
 year-in-review.Rproj
+Plots/*
