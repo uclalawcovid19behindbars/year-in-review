@@ -220,17 +220,16 @@ spine_plot_deaths <- long_counts %>%
   mutate(plot_count = ifelse(metric == "Staff.Deaths", -1*count, count)) %>% 
   mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
          state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  group_by(State) %>% 
+  mutate(plt_order = max(plot_count, na.rm = T)) %>% 
+  ungroup() %>% 
   ggplot(data=., aes(
-                      x = reorder(state_short, plot_count),
+                      x = reorder(state_short, plt_order),
                       # x = state_short,
                       y = plot_count, 
                       fill = metric
                      )) +
   geom_bar(stat="identity") + 
-  # geom_text(aes(x=state_short,
-  #               y=plot_count,
-  #               label=abs(plot_count)),
-  #               vjust = ifelse(plot_count >= 0, 0, 1)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
   labs(title = "Cumulative COVID-19 Deaths",
