@@ -39,6 +39,8 @@ long_counts <- state_aggregated_counts %>%
   pivot_longer(!State, names_to = "metric", values_to = "count")
 ```
 
+Cumulative infections, cumulative deaths, infection rates!
+
 ```{r}
 state_df <- recent_dat %>%
   filter(Jurisdiction == "state") %>%
@@ -165,7 +167,8 @@ panel.background = element_blank(), axis.line = element_line(colour = "black")) 
 ggsave(file.path(plot_path, "staff_deaths.png"), staff_deaths, width = 14, height = 10)
 ```
 
-Try making some spine plots! 
+Spine plots - infections and deaths (split by incarcerated / staff )
+
 ```{r}
 ## INFECTIONS BY STATE (COMBINED)
 incarcerated_pops <- read_csv("https://raw.githubusercontent.com/themarshallproject/COVID_prison_data/master/data/prison_populations.csv") %>% 
@@ -240,9 +243,128 @@ spine_plot_deaths <- long_counts %>%
   coord_flip() + 
   scale_y_continuous(labels = scales::comma)
 ggsave(file.path(plot_path, "spine_plot_deaths.png"), spine_plot_deaths, width = 14, height = 10)
-
 ```
 
+Vaccinations plot - staff and residents
+
+```{r}
+## Incarcerated, dodged initiated / completed
+spine_plot_vaccinations <- long_counts %>%
+  filter(metric %in% c("Residents.Initiated", "Residents.Completed"),
+         !is.na(count)) %>%
+  left_join(incarcerated_pops, by = c("State" = "name")) %>%
+  mutate(plot_count = count / april_pop ) %>%
+  mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
+         state_short = ifelse(is.na(state_short), State, state_short)) %>%
+  group_by(State) %>% 
+  mutate(plt_order = max(plot_count, na.rm = T)) %>% 
+  ungroup() %>% 
+  ggplot(data=., aes(
+                      x = reorder(state_short, plt_order),
+                      # x = state_short,
+                      y = plot_count, 
+                      fill = metric
+                     )) +
+  geom_bar(stat="identity", position = "dodge") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Cumulative COVID-19 Vaccinations Among Incarcerated People",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}')
+       ) + 
+  coord_flip() + 
+  scale_y_continuous(labels = scales::percent)
+ggsave(file.path(plot_path, "spine_plot_vaccinations.png"), spine_plot_vaccinations, width = 14, height = 10)
+```
+
+Monthly cases over time, aggregated
+
+```{r}
+agg_dat <- behindbarstools::calc_aggregate_counts(all_dates = TRUE, 
+                                                  week_grouping = FALSE)
+
+agg_dat_plotting <- agg_dat %>%
+  filter(Measure == "Residents.Confirmed") %>% 
+  mutate(last_month_value = dplyr::lag(Count, order_by = Date),
+         new_monthly_cases = Count - last_month_value,
+         pct_change_montly = new_monthly_cases / Count) 
+
+monthly_new_cases <- agg_dat_plotting %>% 
+  filter(Measure == "Residents.Confirmed") %>% 
+  # filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
+  ggplot(data=., aes(
+                      x = Date,
+                      # y = Count              ## monthly cumulative cases
+                      y = new_monthly_cases  ## new case change
+                      # y = pct_change_montly    ## pct change montly
+                     )) +
+  geom_bar(stat="identity") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Monthly New COVID-19 Infections Among Incarcerated People",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}')
+       ) + 
+  scale_y_continuous(labels = scales::comma)
+ggsave(file.path(plot_path, "monthly_new_cases.png"), monthly_new_cases, width = 14, height = 10)
+
+
+## version 2: faceted cases and deaths
+agg_dat_plotting <- agg_dat %>%
+  filter(Measure == "Residents.Confirmed" | Measure == "Residents.Deaths") %>% 
+  group_by(Measure) %>% 
+  mutate(last_month_value = dplyr::lag(Count, order_by = Date),
+         new_monthly_cases = Count - last_month_value,
+         pct_change_montly = new_monthly_cases / Count) %>%
+  ungroup()
+
+monthly_new_cases <- agg_dat_plotting %>% 
+  # filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
+  ggplot(data=., aes(
+                      x = Date,
+                      # y = Count              ## monthly cumulative cases
+                      y = new_monthly_cases  ## new case change
+                      # y = pct_change_montly    ## pct change montly
+                     )) +
+  geom_bar(stat="identity") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  labs(title = "Monthly New COVID-19 Infections Among Incarcerated People",
+       y = "",
+       x = "",
+       caption = glue('Data updated on {Sys.Date()}')
+       ) + 
+  scale_y_continuous(labels = scales::comma) + 
+  facet_grid(vars(Measure), scales = "free")
+ggsave(file.path(plot_path, "monthly_new_cases.png"), monthly_new_cases, width = 14, height = 10)
+
+## version 3: using marshall project data
+## nvm this is not a good way to use their data
+# mp_hist_dat <- read_mpap_data(all_dates = TRUE) %>%
+#   group_by(Date) %>%
+#   ## sum states' cumulative counts together
+#   summarise(Residents.Confirmed = sum_na_rm(Residents.Confirmed),
+#             Residents.Deaths = sum_na_rm(Residents.Deaths)) %>% 
+#   ungroup() %>% 
+#   pivot_longer(!Date, 
+#                names_to = "Measure", 
+#                values_to = "Count"
+#   ) %>%
+#   arrange(Date) %>%
+#   group_by(month = month(Date), year = year(Date), Measure) %>% 
+#   ## aggregate to monthly data: pull last cumulative count from the month
+#   summarize(Count = dplyr::last(Count)) %>%
+#   ungroup() %>%
+#   mutate(month_date = lubridate::ymd( glue("{year}-{month}-01" ))) %>%
+#   group_by(Measure) %>% 
+#   mutate(last_month_value = dplyr::lag(Count, order_by = Date),
+#          new_monthly_cases = Count - last_month_value,
+#          pct_change_montly = new_monthly_cases / Count) %>%
+#   ungroup()
+
+```
 
 # Load historical data
 
@@ -260,6 +382,7 @@ new_scrape_df <- read_scrape_data(TRUE) %>%
 
 comb_df <- old_scrape_df %>%
     bind_rows(new_scrape_df) %>%
+    filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
     group_by(State, Name, Facility.ID, Jurisdiction) %>%
     # pass constant values to older dates where it didnt exit before
     mutate(Population.Feb20 = get_first_not_na(Population.Feb20)) %>%
