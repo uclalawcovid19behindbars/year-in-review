@@ -172,8 +172,11 @@ Spine plots - infections and deaths (split by incarcerated / staff )
 ```{r}
 ## INFECTIONS BY STATE (COMBINED)
 incarcerated_pops <- read_csv("https://raw.githubusercontent.com/themarshallproject/COVID_prison_data/master/data/prison_populations.csv") %>% 
-  select(name, april_pop)
-staff_pops <- read_csv("https://raw.githubusercontent.com/themarshallproject/COVID_prison_data/master/data/staff_populations.csv")
+  filter(month == "march") %>% 
+  select(name, pop)
+staff_pops <- read_csv("https://raw.githubusercontent.com/themarshallproject/COVID_prison_data/master/data/staff_populations.csv") %>%
+  filter(month == "march") %>% 
+  select(name, pop)
 
 long_with_pop <- long_counts %>% 
   left_join(incarcerated_pops, by = c("State" = "name")) %>%
@@ -186,10 +189,11 @@ long_with_pop <- long_counts %>%
 spine_plot_dat <- long_with_pop %>%
   filter(metric %in% c("Residents.Confirmed", "Staff.Confirmed"),
          !is.na(count)) %>%
-  ## create a rate 
-  mutate(plot_count = ifelse(metric == "Residents.Confirmed", 
-                             count / april_pop.incarcerated, 
-                             count / april_pop.staff)) %>% 
+  mutate(plot_count = count) %>%
+  # ## create a rate 
+  # mutate(plot_count = ifelse(metric == "Residents.Confirmed", 
+  #                            count / pop.incarcerated, 
+  #                            count / pop.staff)) %>% 
   ## make staff negative for spine effect
   mutate(plot_count_spine = ifelse(metric == "Staff.Confirmed", -1*plot_count, plot_count)) %>% 
   mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
@@ -197,6 +201,10 @@ spine_plot_dat <- long_with_pop %>%
   group_by(State) %>% 
   mutate(plt_order = sum(plot_count, na.rm = T)) %>% 
   ungroup()
+
+abs_comma <- function (x, ...) {
+  format(abs(x), ..., big.mark = ",", scientific = FALSE, trim = TRUE)
+}
 
 spine_plot_cases <- spine_plot_dat %>%
   ggplot(data=., aes(
@@ -213,8 +221,8 @@ spine_plot_cases <- spine_plot_dat %>%
        caption = glue('Data updated on {Sys.Date()}\nMissing staff data from ICE, Mississippi, and Arkansas')
        ) + 
   coord_flip() + 
-  scale_y_continuous(labels = scales::percent)
-ggsave(file.path(plot_path, "spine_plot_cases_rate.png"), spine_plot_cases, width = 14, height = 10)
+  scale_y_continuous(labels = abs_comma, limits = c(-20000, 50000), n.breaks = 6)
+ggsave(file.path(plot_path, "spine_plot_cases.png"), spine_plot_cases, width = 14, height = 10)
 
 ## DEATHS VERSION
 spine_plot_deaths <- long_counts %>%
@@ -253,7 +261,7 @@ spine_plot_vaccinations <- long_counts %>%
   filter(metric %in% c("Residents.Initiated", "Residents.Completed"),
          !is.na(count)) %>%
   left_join(incarcerated_pops, by = c("State" = "name")) %>%
-  mutate(plot_count = count / april_pop ) %>%
+  mutate(plot_count = count / pop ) %>%
   mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
          state_short = ifelse(is.na(state_short), State, state_short)) %>%
   group_by(State) %>% 
@@ -278,7 +286,7 @@ spine_plot_vaccinations <- long_counts %>%
 ggsave(file.path(plot_path, "spine_plot_vaccinations.png"), spine_plot_vaccinations, width = 14, height = 10)
 ```
 
-Monthly cases over time, aggregated
+Monthly cases over time, aggregated!
 
 ```{r}
 agg_dat <- behindbarstools::calc_aggregate_counts(all_dates = TRUE, 
@@ -320,7 +328,7 @@ agg_dat_plotting <- agg_dat %>%
          pct_change_montly = new_monthly_cases / Count) %>%
   ungroup()
 
-monthly_new_cases <- agg_dat_plotting %>% 
+monthly_new_cases_facet <- agg_dat_plotting %>% 
   # filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
   ggplot(data=., aes(
                       x = Date,
@@ -331,14 +339,14 @@ monthly_new_cases <- agg_dat_plotting %>%
   geom_bar(stat="identity") + 
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
-  labs(title = "Monthly New COVID-19 Infections Among Incarcerated People",
+  labs(title = "Monthly New COVID-19 Infections and Deaths Among Incarcerated People",
        y = "",
        x = "",
        caption = glue('Data updated on {Sys.Date()}')
        ) + 
   scale_y_continuous(labels = scales::comma) + 
   facet_grid(vars(Measure), scales = "free")
-ggsave(file.path(plot_path, "monthly_new_cases.png"), monthly_new_cases, width = 14, height = 10)
+ggsave(file.path(plot_path, "monthly_new_cases_facet.png"), monthly_new_cases_facet, height = 10, width = 8)
 
 ## version 3: using marshall project data
 ## nvm this is not a good way to use their data
@@ -363,6 +371,63 @@ ggsave(file.path(plot_path, "monthly_new_cases.png"), monthly_new_cases, width =
 #          new_monthly_cases = Count - last_month_value,
 #          pct_change_montly = new_monthly_cases / Count) %>%
 #   ungroup()
+
+```
+
+ICE Plot - ICE population vs US population
+
+```{r}
+## code by neal 
+gen_df <- "https://raw.githubusercontent.com/nytimes/covid-19-data/master/" %>%
+  str_c("us.csv") %>%
+  read_csv(col_types = cols()) %>%
+  select(Date = date, Confirmed = cases, Deaths = deaths) %>%
+  arrange(Date) %>%
+  # not necessary but a good sanity check
+  distinct(Date, .keep_all = TRUE) %>%
+  mutate(Active = diff_roll_sum(Confirmed, Date)) %>%
+  mutate(Population = 328200000) %>%
+  mutate(Name = "United States\nPopulation")
+
+vera_df <- "https://raw.githubusercontent.com/vera-institute/ice-" %>%
+  str_c("detention-covid/master/data_daily/national_population_daily.csv") %>%
+  read_csv(col_types = cols()) %>%
+  select(
+    Date = page_downloaded_day,
+    Population = population_current) %>%
+  arrange(Date) %>%
+  distinct(Date, .keep_all = TRUE) %>%
+  left_join(
+    "https://raw.githubusercontent.com/vera-institute/ice-detention-" %>%
+      str_c("covid/master/data_daily/national_cases_daily.csv") %>%
+      read_csv(col_types = cols()) %>%
+      select(
+        Date = page_downloaded_day,
+        Active = cases_current) %>%
+      arrange(Date) %>%
+      distinct(Date, .keep_all = TRUE),
+    by = "Date"
+  )
+
+ice_gen_plot <- bind_rows(
+  vera_df %>%
+    mutate(Name = "ICE\nPopulation"),
+  gen_df) %>%
+  mutate(Active.P = Active / Population * 10000) %>%
+  filter(Date >= ymd("2020-10-15")) %>%
+  ggplot(aes(x = Date, y = Active.P)) +
+  geom_line(aes(color = Name), size = 2) +
+  theme_behindbars() +
+  scale_color_bbdiscrete() +
+  labs(color = "", y = "Active COVID Infections\nPer 10,000 Individuals") + 
+  scale_x_date(date_breaks = "1.5 months", date_labels = "%m/%y")
+
+ggsave(file.path(plot_path, "ice_plot.png"), ice_gen_plot, width = 14, height = 10)
+```
+
+LASD - LA County Jails 
+
+```{r}
 
 ```
 
