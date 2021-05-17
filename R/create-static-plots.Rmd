@@ -425,10 +425,25 @@ ice_gen_plot <- bind_rows(
 ggsave(file.path(plot_path, "ice_plot.png"), ice_gen_plot, width = 14, height = 10)
 ```
 
-LASD - LA County Jails 
+Jails -- three largest jails in our data 
+
+*Not sure if we really wanna include this one since it features in the interactive*
 
 ```{r}
-
+scrape_df <- read_scrape_data(all_dates = TRUE)
+plt1 <- scrape_df %>% 
+    filter(Name == "LOS ANGELES JAILS" | Name == "NEW YORK CITY JAILS" | Name == "COOK COUNTY JAIL") %>% 
+    ggplot(aes(x = Date, y = Residents.Confirmed, color = Name)) + 
+    geom_line(size = 2.0) + 
+    geom_hline(yintercept = 2000, color = "#497F63", linetype = "dotted") + 
+    scale_x_date(date_labels = "%b %d") +
+    theme_behindbars() + 
+    scale_y_continuous(labels = scales::comma, 
+                       # limits = c(0, 2500)
+                       ) #+ 
+    # labs(title = "25% of Incarcerated People Have COVID-19 ", 
+    #      subtitle = "In CCWF Central CA Women's Prison - Madera County, California", 
+    #      y = "Active Cases") 
 ```
 
 # Load historical data

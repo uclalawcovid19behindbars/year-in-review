@@ -9,7 +9,7 @@ let state = {
     series: [],
     aggCounts: [],
     dates: [],
-    transition: 7000,
+    transition: 3000,
     hover: null,
 };
 
@@ -21,7 +21,7 @@ let state = {
 
 Promise.all([
   d3.csv("./data/processed/agg_counts.csv", d3.autoType),
-  d3.csv("./data/processed/cumulative_cases.csv", d3.autoType),
+  d3.csv("./data/processed/cumulative_cases_wide.csv", d3.autoType),
   // d3.csv("./data/processed/active_cases.csv", d3.autoType),
 ]).then(([aggCounts, lineData]) => {
   state.aggCounts = aggCounts;
@@ -39,13 +39,13 @@ Promise.all([
 
 function init() {
   linechart = new Linechart(state, setGlobalState);
-  casecount = new CaseCount(state, setGlobalState);
+  // casecount = new CaseCount(state, setGlobalState);
   draw();
 }
 
 function draw() {
     linechart.draw(state, setGlobalState);
-    casecount.draw(state, setGlobalState);
+    // casecount.draw(state, setGlobalState);
   }
 
 // state-updating function

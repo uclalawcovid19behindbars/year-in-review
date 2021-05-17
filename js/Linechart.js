@@ -1,13 +1,11 @@
 class Linechart {
 
     constructor(state, setGlobalState) {
-      // initialize properties here
+      // initialize properties 
       this.width = window.innerWidth * 0.8;
       this.height = window.innerHeight * 0.6;
       this.margins = { top: 20, bottom: 40, left: 35, right: 20 };
-      this.duration = 1000;
-      this.format = d3.format(",." + d3.precisionFixed(1) + "f");
-  
+
       this.svg = d3
         .select("#linechart")
         .append("svg")
@@ -17,28 +15,19 @@ class Linechart {
       // create data grouping of facilities to highlight
       this.highlightFacs = state.series.filter(d => d["highlightFac"] == "TRUE");  
       console.log("facs to highlight", this.highlightFacs);
-
-    // this.sumstat = d3.group(state.lineData, d => d["Facility.ID"]);
-    // // filter out facilities to highlight 
-    // this.sumstat.delete(100)
-    // // this.sumstat.delete(652)
-    // this.sumstat.delete(83)
-    // this.sumstat.delete(115)
-    // this.sumstat.delete(113)
-    // console.log("sumstat post-delete", this.sumstat);
-
     }
   
     draw(state, setGlobalState) {
         console.log("now I am drawing my graph");
 
-        // only need to draw x-axis once
+        // draw x-axis
         const xScale = d3
-            .scaleTime()
-            .domain(d3.extent(state.dates))
-            .range([this.margins.left, this.width - this.margins.right]);
+        .scaleTime()
+        .domain(d3.extent(state.dates))
+        .range([this.margins.left, this.width - this.margins.right]);
 
-        this.xAxis = d3.axisBottom(xScale);
+        this.xAxis = d3.axisBottom(xScale)
+          .tickFormat(d3.timeFormat("%b %Y"));
 
         // draw x-axis
         this.svg
@@ -134,7 +123,7 @@ class Linechart {
 
       function myTransition(path) {
           path.transition()
-              .duration(state.transition)
+              .duration(state.transition*2)
               .attrTween("stroke-dasharray", tweenDash)
               .on("end", () => { d3.select(this).call(myTransition); })
               .transition()
@@ -154,25 +143,26 @@ class Linechart {
         .attr("d", d => line(d.values))
         .style("opacity", 0)
 
+      // timing for background blue lines to fade in 
       var t = d3.transition()
-        .delay(state.transition)
-        .duration(state.transition)
+        .delay(state.transition*2)
+        .duration(state.transition*2)
         .ease(d3.easeLinear);
 
-    const pathWithTransition = this.svg.append("g")
-      .attr("fill", "none")
-      .attr("stroke", "steelblue")
-      .attr("stroke-width", 1.5)
-      .attr("stroke-linejoin", "round")
-      .attr("stroke-linecap", "round")
-      .selectAll("path")
-      .data(state.series)
-      .join("path")
-      .style("mix-blend-mode", "multiply")
-      .attr("d", d => line(d.values))
-      .style("opacity", 0)
-      .transition(t)
-      .style("opacity", 1)
+      const pathWithTransition = this.svg.append("g")
+        .attr("fill", "none")
+        .attr("stroke", "steelblue")
+        .attr("stroke-width", 1.5)
+        .attr("stroke-linejoin", "round")
+        .attr("stroke-linecap", "round")
+        .selectAll("path")
+        .data(state.series)
+        .join("path")
+        .style("mix-blend-mode", "multiply")
+        .attr("d", d => line(d.values))
+        .style("opacity", 0)
+        .transition(t)
+        .style("opacity", 1)
 
       function drawHighlightLines(svg, highlightData) {
         let highlightLines = svg
@@ -190,7 +180,7 @@ class Linechart {
         .call(myTransition);
       }
 
-      // select replay button 
+      // grab replay button 
       var replayButton = d3.select("button");
 
       // re-draw highlight lines on button click
@@ -201,7 +191,7 @@ class Linechart {
         })
       }
 
-      this.svg.call(hover, path); // hover stopped working : ( 
+      this.svg.call(hover, path); 
       // draw highlight lines the first time
       this.svg.call(drawHighlightLines, this.highlightFacs);
       // re-draw highlight lines on button click

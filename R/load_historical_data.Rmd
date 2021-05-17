@@ -169,7 +169,7 @@ outbreaks_graph <-
   # theme(legend.position = "none") %>%
   theme_behindbars() + 
   scale_color_bbdiscrete()
-ggsave(file.path(this_dir, "plots", "highlight_outbreaks.png"), outbreaks_graph, width = 14, height = 10)
+ggsave(file.path(this_dir, "plots", "highlight_outbreaks.png"), outbreaks_graph, width = 18, height = 10)
 
 res_cases_dat <- 
   filt_filled_dates %>%
