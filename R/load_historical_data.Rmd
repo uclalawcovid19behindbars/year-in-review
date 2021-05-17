@@ -1,7 +1,7 @@
 ---
 title: "Load Historical Data"
 author: "Hope Johnson"
-date: "3/25/2021"
+date: "4/22/2021"
 output: html_document
 ---
 
@@ -32,25 +32,33 @@ data_path <- file.path(this_dir, "data", "processed")
 Load up all the states for which I have cleaned historical data ! Be sure to `git pull` from historical data repo first to get the most up-to-date data. 
 
 ```{r}
-historical_data_path <- file.path("~", "UCLA", "code", "historical-data", "data")
-hist_dat_files <-
-    list.files(path = historical_data_path, 
-               pattern = "*.csv",
-               full.names = TRUE) 
+# historical_data_path <- file.path("~", "UCLA", "code", "historical-data", "data")
+# hist_dat_files <-
+#     list.files(path = historical_data_path, 
+#                pattern = "*.csv",
+#                full.names = TRUE) 
+# 
+# ## set column types 
+# jnk <- read.csv(hist_dat_files[1], nrows=1, check.names=FALSE)
+# # all columns are character columns unless otherwise denoted
+# ctypes <- rep("c", ncol(jnk))
+# names(ctypes) <- names(jnk)
+# ctypes[stringr::str_starts(names(ctypes), "Residents|Staff")] <- "d"
+# ctypes[names(ctypes) == "Date"] <- "D"
 
-## set column types 
-jnk <- read.csv(hist_dat_files[1], nrows=1, check.names=FALSE)
-# all columns are character columns unless otherwise denoted
-ctypes <- rep("c", ncol(jnk))
-names(ctypes) <- names(jnk)
-ctypes[stringr::str_starts(names(ctypes), "Residents|Staff")] <- "d"
-ctypes[names(ctypes) == "Date"] <- "D"
+all_dat <- read_scrape_data(all_dates = TRUE)
 
-dat_df <- hist_dat_files %>%
-  map_df(~readr::read_csv(., col_types = paste0(ctypes, collapse = ""))) %>%
-  mutate(NameToShow = glue('{stringr::str_to_title(Name)}, {State}')) %>%
-  filter(!str_detect(Name, "(?i)statewide"),
-         !str_detect(Name, "(?i)state-wide")) 
+dat_df <- all_dat %>% 
+  filter(Date > "2020-04-29" & Date < "2021-05-01",
+         !str_detect(Name, "(?i)statewide"),
+         !str_detect(Name, "(?i)state-wide")) %>%
+  mutate(NameToShow = glue('{stringr::str_to_title(Name)}, {State}'))
+
+# dat_df <- hist_dat_files %>% 
+#   map_df(~readr::read_csv(., col_types = paste0(ctypes, collapse = ""))) %>%
+#   mutate(NameToShow = glue('{stringr::str_to_title(Name)}, {State}')) %>%
+#   filter(!str_detect(Name, "(?i)statewide"),
+#          !str_detect(Name, "(?i)state-wide")) 
 ```
 
 ## Translate data to a new format for plots
@@ -72,7 +80,14 @@ long_dat <- dat_df %>%
   group_by(State, Name, Jurisdiction) %>% # don't have facility.ID for 100%
   mutate(lag_value = dplyr::lag(Residents.Confirmed, order_by = Date),
          diff = Residents.Confirmed - lag_value,
-         Residents.Confirmed_cln = ifelse(diff < -5, NA, Residents.Confirmed) # drops in cumulative cases >5 become NA
+         Residents.Confirmed_cln = ifelse(diff < -5, NA, Residents.Confirmed), # drops in cumulative cases >5 become NA
+         outbreak = ifelse(diff > 4, TRUE, FALSE),
+         outbreak = ifelse(is.na(outbreak), FALSE, outbreak),
+         ## try with a longer number of positions to lag by
+         lag_three = dplyr::lag(Residents.Confirmed, n = 3, order_by = Date),
+         diff_three = Residents.Confirmed - lag_three,
+         outbreak_alt = ifelse(diff_three > 4, TRUE, FALSE),
+         outbreak_alt = ifelse(is.na(outbreak_alt), FALSE, outbreak_alt),
          ) %>% 
   fill(Residents.Confirmed_cln) %>% # fill in missing values with last value (above)
   ungroup() %>%
@@ -86,52 +101,97 @@ filled_dates <- long_dat %>%
   fill(Residents.Confirmed_cln, #fill in missing values with last value (above)
        NameToShow,
        Facility.ID,
-       highlightFac) %>% 
+       highlightFac,
+       outbreak,
+       outbreak_alt) %>% 
   arrange(Date) %>%
   ## recalculate lags
   mutate(lag_value = dplyr::lag(Residents.Confirmed_cln, order_by = Date),
          diff = Residents.Confirmed_cln - lag_value,
-         perc_change = diff / lag_value,
-         perc_change = ifelse(is.infinite(perc_change), 1, perc_change),
-         large_perc_change = ifelse(perc_change > .4, TRUE, FALSE)
+         # perc_change = diff / lag_value,
+         # perc_change = ifelse(is.infinite(perc_change), 1, perc_change),
+         # large_perc_change = ifelse(perc_change > .4, TRUE, FALSE)
          ) %>%
   relocate(Facility.ID, State, Name, NameToShow, Date, Residents.Confirmed, Residents.Confirmed_cln) %>%
-  ungroup()
+  ungroup() %>% 
+  ## NYC jails big spike looks crazy
+  filter(Name != "NEW YORK CITY JAILS",
+         NameToShow != "Smith County Jail, Texas")
+
+## filter out facilities with <19 case change over the entire year
+filt_filled_dates <- filled_dates %>%
+  group_by(Facility.ID) %>%
+  arrange(Date) %>%
+  mutate(total_change = last(Residents.Confirmed) - first(Residents.Confirmed)) %>%
+  ungroup() %>%
+  filter(total_change > 19)
 
 # filled_dates %>% filter(Name == "LOS ANGELES JAILS") %>% View() # 360 obs
 # long_dat %>% filter(Name == "LOS ANGELES JAILS") %>% View()
 
+## test outbreaks highlight just on LA jails
+la_jails <- filled_dates %>%
+  filter(Name == "LOS ANGELES JAILS") %>%
+  ggplot(.) +
+  ggplot2::geom_point(aes(
+    x = Date,
+    y = Residents.Confirmed_cln, # change 7-day average, 15-day average, etc here
+    group = Facility.ID,
+    color = outbreak_alt,
+    size = 2),
+    ) +
+    # color = outbreak_updated)) +
+    # color = large_perc_change)) +
+  # geom_line(aes(group = highlight_fac, color = "red")) +
+  scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
+  scale_y_continuous(labels = scales::comma) 
+ggplotly(la_jails)
+
 ## check long dat looks ok
-filled_dates %>%
+outbreaks_graph <- 
+  filt_filled_dates %>%
   ggplot(.) +
   ggplot2::geom_line(aes(
     x = Date,
     y = Residents.Confirmed_cln, # change 7-day average, 15-day average, etc here
     group = Facility.ID,
-    color = large_perc_change)) +
+    color = outbreak_alt,
+    # alpha = Residents.Confirmed
+    )) +
+    # color = outbreak_updated)) +
+    # color = large_perc_change)) +
   # geom_line(aes(group = highlight_fac, color = "red")) +
   scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
   scale_y_continuous(labels = scales::comma) +
   labs(x = "",
        y = "Cumulative COVID-19 Cases Among Incarcerated People",
-       title = "COVID-19 Cases In Prison")# +
-  # theme(legend.position = "none")
+       title = "COVID-19 Cases In Prison") +
+  # theme(legend.position = "none") %>%
+  theme_behindbars() + 
+  scale_color_bbdiscrete()
+ggsave(file.path(this_dir, "plots", "highlight_outbreaks.png"), outbreaks_graph, width = 14, height = 10)
 
-res_cases_dat <- filled_dates %>%
+res_cases_dat <- 
+  filt_filled_dates %>%
   select(State, Name, NameToShow, Date, Residents.Confirmed_cln, 
          Jurisdiction, highlightFac) %>%
   arrange(Date) %>%
   pivot_wider(names_from = Date, values_from = Residents.Confirmed_cln) %>%
-  mutate(countReal = rowSums(!is.na(select(., -State, -Name, -Jurisdiction, -NameToShow, -highlightFac)))) %>%
-  filter(countReal > 90) %>% # only keep data we have values for more than 3 months
-  select(NameToShow, highlightFac, `2020-03-26`:`2021-04-05`) 
-
+  mutate(countReal = rowSums(!is.na(select(., -State, -Name, -Jurisdiction, 
+                                           -NameToShow, -highlightFac)))) %>%
+  # filter(countReal > 90) %>% # only keep data we have values for more than 3 months
+  select(NameToShow, highlightFac, `2020-04-30`:`2021-04-30`) 
 
 res_cases_dat %>% 
   filter(NameToShow == "Los Angeles Jails, California") %>% 
   View()
 
-write_csv(res_cases_dat, file.path(data_path, "cumulative_cases.csv"))
+## any list columns with length > 1? check 
+res_cases_dat %>% 
+  filter(if_any(where(is.list), ~ lengths(.x) > 1))
+
+# write_csv(res_cases_dat, file.path(data_path, "cumulative_cases.csv"))
+write_csv(res_cases_dat, file.path(data_path, "cumulative_cases_wide.csv"))
 ```
 
 Next, create a data set with estimated active cases.
