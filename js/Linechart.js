@@ -115,7 +115,7 @@ class Linechart {
 
       function myTransition(path) {
           path.transition()
-              .duration(state.transition*8)
+              .duration(state.transition)
               .attrTween("stroke-dasharray", tweenDash)
               .ease(d3.easeLinear)
               .on("end", () => { d3.select(this).call(myTransition); });
