@@ -13,16 +13,9 @@ let state = {
     hover: null,
 };
 
-//read in data
-// d3.csv("./data/processed/mar9.csv", d3.autoType).then(data => {
-//     state.lineData = data;
-//     init();
-//   })
-
 Promise.all([
   d3.csv("./data/processed/agg_counts.csv", d3.autoType),
   d3.csv("./data/processed/cumulative_cases_wide.csv", d3.autoType),
-  // d3.csv("./data/processed/active_cases.csv", d3.autoType),
 ]).then(([aggCounts, lineData]) => {
   state.aggCounts = aggCounts;
   // state.lineData = lineData;
