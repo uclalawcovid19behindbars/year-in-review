@@ -24,9 +24,8 @@ body {
 .metric {
   flex-grow: 1;
   text-align: center;
-}
-
-.metric > .number {
   color: #ccc;
-  font-size: 25px;
+  /* font-size: 25px; */
+  font-size: 2em;
+
 }

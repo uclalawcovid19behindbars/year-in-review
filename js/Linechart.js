@@ -118,7 +118,14 @@ class Linechart {
               .duration(state.transition)
               .attrTween("stroke-dasharray", tweenDash)
               .ease(d3.easeLinear)
-              .on("end", () => { d3.select(this).call(myTransition); });
+              .on("end", () => { d3.select(this).call(myTransition); })
+              .transition()
+              .style("stroke", function(d){
+                if(d.highlightFac == "TRUE"){
+                  return "orange"
+                } else { 
+                  return null }
+               })            
       }
 
       const movingLines = this.svg

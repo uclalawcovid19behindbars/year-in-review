@@ -8,6 +8,7 @@ class CaseCount {
 
       const myCount = this.container
         .append("p")
+        .attr("class", "metric")
         .style("font-family", "var(--sans-serif)")
         .style("font-variant-numeric", "tabular-nums")
         .property("_current", 395529)
@@ -22,8 +23,7 @@ class CaseCount {
           var i = d3.interpolate(0, 395529);  
           return function(t) {
               d3.select((that))
-                .text(formatNumber(i(t))
-                );
+                .text(formatNumber(i(t)));
           };
         })
 
