@@ -206,22 +206,39 @@ abs_comma <- function (x, ...) {
   format(abs(x), ..., big.mark = ",", scientific = FALSE, trim = TRUE)
 }
 
-spine_plot_cases <- spine_plot_dat %>%
+labeller_spine <- tibble(label = c("Staff", "Incarcerated People"),
+                         value = c(-1000, 8000))
+
+spine_plot_cases <- 
+  spine_plot_dat %>%
   ggplot(data=., aes(
                       x = reorder(state_short, plt_order),
                       y = plot_count_spine, 
                       fill = metric
                      )) +
   geom_bar(stat="identity") + 
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.position = "none") + 
   labs(title = "Cumulative COVID-19 Infections",
        y = "",
        x = "",
        caption = glue('Data updated on {Sys.Date()}\nMissing staff data from ICE, Mississippi, and Arkansas')
        ) + 
   coord_flip() + 
-  scale_y_continuous(labels = abs_comma, limits = c(-20000, 50000), n.breaks = 6)
+  scale_y_continuous(labels = abs_comma, 
+                     limits = c(-20000, 50000), 
+                     n.breaks = 6,
+                    # expand = c(0, 0),
+            sec.axis = dup_axis(
+            breaks = labeller_spine$value,
+            labels = labeller_spine$label,
+            name = NULL
+          )
+  ) + 
+  scale_fill_manual(values=c("#D7790F", "#4C6788")) 
 ggsave(file.path(plot_path, "spine_plot_cases.png"), spine_plot_cases, width = 14, height = 10)
 
 ## DEATHS VERSION
@@ -241,15 +258,28 @@ spine_plot_deaths <- long_counts %>%
                       fill = metric
                      )) +
   geom_bar(stat="identity") + 
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        axis.line = element_line(colour = "black"),
+        legend.position = "none") + 
   labs(title = "Cumulative COVID-19 Deaths",
        y = "",
        x = "",
-       caption = glue('Data updated on {Sys.Date()}\nMissing staff deaths data from many places')
+       caption = glue('Data updated on {Sys.Date()}\nMissing staff deaths data across jurisdictions')
        ) + 
   coord_flip() + 
-  scale_y_continuous(labels = scales::comma)
+  scale_y_continuous(labels = abs_comma, 
+                     # limits = c(-20000, 50000), 
+                     n.breaks = 6,
+                    # expand = c(0, 0),
+            sec.axis = dup_axis(
+            breaks = c(-25, 100),
+            labels = labeller_spine$label,
+            name = NULL
+          )
+  ) + 
+  scale_fill_manual(values=c("#D7790F", "#4C6788")) 
 ggsave(file.path(plot_path, "spine_plot_deaths.png"), spine_plot_deaths, width = 14, height = 10)
 ```
 
@@ -257,32 +287,42 @@ Vaccinations plot - staff and residents
 
 ```{r}
 ## Incarcerated, dodged initiated / completed
-spine_plot_vaccinations <- long_counts %>%
+spine_plot_vaccinations <- 
+  long_counts %>%
   filter(metric %in% c("Residents.Initiated", "Residents.Completed"),
          !is.na(count)) %>%
   left_join(incarcerated_pops, by = c("State" = "name")) %>%
-  mutate(plot_count = count / pop ) %>%
+  mutate(plot_count = count / pop) %>%
+  pivot_wider(names_from = metric, values_from = count) %>%
+  mutate(Residents.Initiated = ifelse(is.na(Residents.Initiated), 0, Residents.Initiated),
+         Residents.Completed = ifelse(is.na(Residents.Completed), 0, Residents.Completed),
+         least_one_vax = ifelse(Residents.Completed > Residents.Initiated,
+                                Residents.Completed,
+                                Residents.Initiated),
+         least_one_vax_perc = least_one_vax / pop,
+         no_vax = pop - least_one_vax
+         ) %>% 
   mutate(state_short = behindbarstools::translate_state(State, reverse = TRUE),
          state_short = ifelse(is.na(state_short), State, state_short)) %>%
   group_by(State) %>% 
-  mutate(plt_order = max(plot_count, na.rm = T)) %>% 
+  mutate(plt_order = max(least_one_vax_perc, na.rm = T)) %>% 
   ungroup() %>% 
   ggplot(data=., aes(
                       x = reorder(state_short, plt_order),
                       # x = state_short,
-                      y = plot_count, 
-                      fill = metric
+                      y = least_one_vax_perc, 
+                      # fill = metric
                      )) +
-  geom_bar(stat="identity", position = "dodge") + 
+  geom_bar(stat="identity", position = "dodge", fill = "#82CAA4") + 
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
-  labs(title = "Cumulative COVID-19 Vaccinations Among Incarcerated People",
+  labs(title = "COVID-19 Vaccinations Among Incarcerated People*",
        y = "",
        x = "",
-       caption = glue('Data updated on {Sys.Date()}')
+       caption = glue('*Percentage of the incarcerated population with at least one vaccination\nData updated on {Sys.Date()}')
        ) + 
   coord_flip() + 
-  scale_y_continuous(labels = scales::percent)
+  scale_y_continuous(labels = scales::percent) 
 ggsave(file.path(plot_path, "spine_plot_vaccinations.png"), spine_plot_vaccinations, width = 14, height = 10)
 ```
 
@@ -291,6 +331,9 @@ Monthly cases over time, aggregated!
 ```{r}
 agg_dat <- behindbarstools::calc_aggregate_counts(all_dates = TRUE, 
                                                   week_grouping = FALSE)
+
+agg_dat <- behindbarstools::calc_aggregate_counts(all_dates = TRUE, 
+                                                  week_grouping = TRUE)
 
 agg_dat_plotting <- agg_dat %>%
   filter(Measure == "Residents.Confirmed") %>% 
@@ -329,26 +372,31 @@ agg_dat_plotting <- agg_dat %>%
          pct_change_montly = new_monthly_cases / Count) %>%
   ungroup()
 
-monthly_new_cases_facet <- 
+weekly_new_cases_facet <- 
   agg_dat_plotting %>% 
-  filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
+  filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-04-25")),
+         new_monthly_cases > 0) %>%
   ggplot(data=., aes(
                       x = Date,
                       # y = Count              ## monthly cumulative cases
                       y = new_monthly_cases  ## new case change
                       # y = pct_change_montly    ## pct change montly
                      )) +
-  geom_bar(stat="identity") + 
+  geom_bar(stat="identity", aes(fill = Measure)) + 
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), axis.line = element_line(colour = "black")) + 
   labs(title = "Monthly New COVID-19 Infections and Deaths Among Incarcerated People",
        y = "",
-       x = "",
-       caption = glue('Data updated on {Sys.Date()}')
+       x = ""
+       # caption = glue('Data updated on {Sys.Date()}')
        ) + 
   scale_y_continuous(labels = scales::comma) + 
-  facet_grid(vars(Measure), scales = "free")
-ggsave(file.path(plot_path, "monthly_new_cases_facet.png"), monthly_new_cases_facet, height = 10, width = 8)
+  facet_grid(vars(Measure), scales = "free") + 
+  scale_fill_manual(values=c("#D7790F", "#4C6788")) + 
+  theme(legend.position = "none")
+# ggsave(file.path(plot_path, "monthly_new_cases_facet.png"), monthly_new_cases_facet, height = 10, width = 8)
+ggsave(file.path(plot_path, "weekly_new_cases_facet.png"), weekly_new_cases_facet, height = 10, width = 8)
+
 
 ## version 3: using marshall project data
 ## nvm this is not a good way to use their data
@@ -411,19 +459,33 @@ vera_df <- "https://raw.githubusercontent.com/vera-institute/ice-" %>%
     by = "Date"
   )
 
-ice_gen_plot <- bind_rows(
+ice_plot_labeller <- tibble(name = c("United States\nPopulation", "ICE Population"),
+                            value = c(11.4, 675.24842))
+
+ice_gen_plot <- 
+  bind_rows(
   vera_df %>%
     mutate(Name = "ICE\nPopulation"),
   gen_df) %>%
   mutate(Active.P = Active / Population * 10000) %>%
   filter(Date >= ymd("2020-10-15")) %>%
+  filter(Date < as.Date("2021-04-30")) %>% 
   ggplot(aes(x = Date, y = Active.P)) +
   geom_line(aes(color = Name), size = 2) +
   theme_behindbars() +
   scale_color_bbdiscrete() +
-  labs(color = "", y = "Active COVID Infections\nPer 10,000 Individuals") + 
-  scale_x_date(date_breaks = "1.5 months", date_labels = "%m/%y")
-
+  labs(color = "", y = "Active COVID Infections\nPer 10,000 Individuals",
+       title = "COVID-19 Rates of Infection in ICE Detention") + 
+  # scale_x_date(date_breaks = "1.5 months", date_labels = "%m/%y") + 
+  scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
+  scale_y_continuous(
+            sec.axis = dup_axis(
+            breaks = ice_plot_labeller$value,
+            labels = ice_plot_labeller$name,
+            name = NULL
+          )
+  ) + 
+  theme(legend.position = "none")
 ggsave(file.path(plot_path, "ice_plot.png"), ice_gen_plot, width = 14, height = 10)
 ```
 
