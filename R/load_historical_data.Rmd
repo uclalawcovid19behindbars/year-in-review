@@ -140,12 +140,16 @@ la_jails <- filled_dates %>%
     color = outbreak_alt,
     size = 2),
     ) +
-    # color = outbreak_updated)) +
-    # color = large_perc_change)) +
-  # geom_line(aes(group = highlight_fac, color = "red")) +
   scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
   scale_y_continuous(labels = scales::comma) 
 ggplotly(la_jails)
+
+large_facs_to_label <- filt_filled_dates %>% 
+  filter(Residents.Confirmed_cln > 2215) %>% 
+  group_by(Facility.ID) %>% 
+  slice(which.max(Date)) %>%
+  ungroup() %>%
+  mutate(labeller = glue('{str_to_title(Name)}\n{State}'))
 
 ## check long dat looks ok
 outbreaks_graph <- 
@@ -156,19 +160,25 @@ outbreaks_graph <-
     y = Residents.Confirmed_cln, # change 7-day average, 15-day average, etc here
     group = Facility.ID,
     color = outbreak_alt,
-    # alpha = Residents.Confirmed
     )) +
-    # color = outbreak_updated)) +
-    # color = large_perc_change)) +
-  # geom_line(aes(group = highlight_fac, color = "red")) +
   scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") +
-  scale_y_continuous(labels = scales::comma) +
+  scale_y_continuous(
+    limits = c(0, 4000),
+    expand = c(0, 0),
+    sec.axis = dup_axis(
+      breaks = large_facs_to_label$Residents.Confirmed_cln,
+      labels = large_facs_to_label$labeller,
+      name = NULL
+    ),
+    labels = scales::comma
+  ) + 
   labs(x = "",
        y = "Cumulative COVID-19 Cases Among Incarcerated People",
-       title = "COVID-19 Cases In Prison") +
-  # theme(legend.position = "none") %>%
+       title = "COVID-19 Cases In Prisons and Jails") +
   theme_behindbars() + 
-  scale_color_bbdiscrete()
+  scale_color_manual(values=c("#dddddd", "#D7790F")) + 
+  theme(legend.position = "none",
+        axis.text.y = element_text(size = 15))
 ggsave(file.path(this_dir, "plots", "highlight_outbreaks.png"), outbreaks_graph, width = 18, height = 10)
 
 res_cases_dat <- 

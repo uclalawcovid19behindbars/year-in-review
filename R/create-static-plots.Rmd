@@ -298,7 +298,8 @@ agg_dat_plotting <- agg_dat %>%
          new_monthly_cases = Count - last_month_value,
          pct_change_montly = new_monthly_cases / Count) 
 
-monthly_new_cases <- agg_dat_plotting %>% 
+monthly_new_cases <- 
+  agg_dat_plotting %>% 
   filter(Measure == "Residents.Confirmed") %>% 
   # filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
   ggplot(data=., aes(
@@ -328,8 +329,9 @@ agg_dat_plotting <- agg_dat %>%
          pct_change_montly = new_monthly_cases / Count) %>%
   ungroup()
 
-monthly_new_cases_facet <- agg_dat_plotting %>% 
-  # filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
+monthly_new_cases_facet <- 
+  agg_dat_plotting %>% 
+  filter((Date > ymd("2020-04-29")) & (Date < ymd("2021-05-01"))) %>%
   ggplot(data=., aes(
                       x = Date,
                       # y = Count              ## monthly cumulative cases
@@ -616,22 +618,48 @@ Create area plot showing counts aggregated by jurisdiction.
 
 ```{r}
 ## RESIDENTS.CONFIRMED
-#area plot
-aggregate_area <- rolling_max_res_confirmed %>%
-  # filter(Measure == "Residents.Confirmed") %>%
-  ggplot(data = ., 
-         aes(x = Date, 
-             y = resconfMax_10day, 
-             fill  = Jurisdiction)) +
-  geom_area(alpha=1, size=.05, colour="black") +
+# jurisiction line plot 
+agg_df_plotting <- agg_df %>%
+  filter(Measure == "Residents.Confirmed") %>%
+  filter(Date > as.Date("2020-04-29") & Date < as.Date("2021-04-20")) %>% 
+  group_by(week, year, Jurisdiction) %>% 
+  summarise(weekly_res_confirmed_max = max(Count)) %>% 
+  ungroup() %>%
+  mutate(week_date = lubridate::ymd( glue("{year}-01-01" )) + lubridate::weeks(week - 1 )) 
+
+agg_df_last <- agg_df_plotting %>% 
+  group_by(Jurisdiction) %>% 
+  slice(which.max(week_date)) %>%
+  ungroup() %>% 
+  mutate(formatted_num = format(weekly_res_confirmed_max, big.mark = ","),
+         labeller = glue('{Jurisdiction}\n{formatted_num}'))
+
+jurisdiction_lines <- ggplot(data = agg_df_plotting, 
+         aes(x = week_date, 
+             y = weekly_res_confirmed_max, 
+             colour  = Jurisdiction)) +
+  # geom_point() + 
+  geom_smooth(se = FALSE, aes(fill = Jurisdiction), size=3) + 
+  # geom_area(alpha=1, size=.05, colour="black") +
   scale_x_date(date_breaks = "1 months", date_labels = "%b '%y") + 
-  scale_y_continuous(labels = scales::comma) + 
   labs(x = "", 
        y = "Cumulative COVID-19 Cases Among Incarcerated People", 
        title = "Aggregating COVID-19 Case Counts in Prison") + 
   theme_behindbars(base_size = 18) + 
-  scale_fill_bbdiscrete()
-ggsave(file.path(this_dir, "plots", "aggregate_area.png"), aggregate_area, width = 14, height = 10)
+  scale_color_bbdiscrete() +
+  scale_fill_bbdiscrete() + 
+  scale_y_continuous(
+    limits = c(0, 300000),
+    expand = c(0, 0),
+    sec.axis = dup_axis(
+      breaks = agg_df_last$weekly_res_confirmed_max,
+      labels = agg_df_last$labeller,
+      name = NULL
+    ),
+    labels = scales::comma
+  ) + 
+  theme(legend.position = "none")
+ggsave(file.path(this_dir, "plots", "jurisdiction_lines.png"), jurisdiction_lines, width = 14, height = 10)
   
 # line plot
 line <- rolling_max_res_confirmed %>%
@@ -722,8 +750,8 @@ line_plot <- test_dat %>%
   scale_alpha_manual(values = c(.3, 1)) + 
   labs(x = "", 
        y = "Cumulative COVID-19 Cases Among Incarcerated People", 
-       title = "COVID-19 Cases In Prison") + 
-  theme(legend.position = "none")
+       title = "COVID-19 Cases In Prisons and Jails") + 
+  theme(legend.position = "none") 
 ggsave(file.path(this_dir, "plots", "facility_lines.png"), line_plot, width = 14, height = 10)
 
 
